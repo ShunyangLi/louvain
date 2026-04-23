@@ -371,12 +371,8 @@ int main() {
     std::cout << "Database path: " << db_path << std::endl;
 
     neug::NeugDB db;
-    // Open READ_ONLY: Louvain analytics don't mutate the DB, and READ_WRITE
-    // triggers a VertexTable::EnsureCapacity() rehash on open that has been
-    // crashing against this checkpoint. RO also allows multiple concurrent
-    // analytic runs on the same snapshot.
     if (!db.Open(db_path, /*max_num_threads=*/0,
-                 neug::DBMode::READ_ONLY)) {
+                 neug::DBMode::READ_WRITE)) {
         std::cerr << "Failed to open database: " << db_path << std::endl;
         return 1;
     }
