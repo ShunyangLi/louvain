@@ -15,12 +15,16 @@
  */
 
 #include <neug/main/neug_db.h>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <sstream>
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 #include <unistd.h>
 
 // NeuG data directory (contains graph.yaml, checkpoint/, etc.).
@@ -213,75 +217,159 @@ bool validateCoauthorCSV(const std::string& filepath,
     return row_count > 0;
 }
 
-int testLouvainCoauthor(neug::Connection* conn,
-                        int64_t year_min, int64_t year_max) {
+struct WindowResult {
+    std::string label;                 // e.g. "2018-2019" or "2024"
+    int64_t num_vertices = 0;
+    int64_t num_communities = 0;
+    double  modularity = 0.0;
+    int64_t levels = 0;
+    std::string result_file;
+    // country_code -> community_id for this window
+    std::unordered_map<std::string, int> country_to_comm;
+};
+
+// Run one CALL LOUVAIN_COAUTHOR(year_min, year_max), validate basic invariants,
+// and parse its result CSV into out.country_to_comm.
+// Returns 0 on success, 1 on failure.
+int runCoauthorWindow(neug::Connection* conn,
+                      int64_t year_min, int64_t year_max,
+                      WindowResult& out) {
+    std::ostringstream label_ss;
+    if (year_min == year_max) label_ss << year_min;
+    else label_ss << year_min << "-" << year_max;
+    out.label = label_ss.str();
+
     std::cout << "\n=== CALL LOUVAIN_COAUTHOR(" << year_min << ", "
-              << year_max << ") ===" << std::endl;
+              << year_max << ")  [window=" << out.label << "] ===" << std::endl;
 
     std::ostringstream qs;
     qs << "CALL LOUVAIN_COAUTHOR(" << year_min << ", " << year_max
        << ") RETURN *;";
-    std::string query = qs.str();
-    std::cout << "Query: " << query << std::endl;
-
-    auto res = conn->Query(query);
+    auto res = conn->Query(qs.str());
     if (!res.has_value()) {
         std::cerr << "LOUVAIN_COAUTHOR failed: "
                   << res.error().ToString() << std::endl;
         return 1;
     }
-    auto& result_rs = res.value();
-    std::cout << result_rs.ToString() << std::endl;
-
-    auto& resp = result_rs.response();
+    auto& resp = res.value().response();
     if (resp.row_count() != 1) {
-        std::cerr << "Expected exactly 1 result row, got: "
-                  << resp.row_count() << std::endl;
+        std::cerr << "Expected 1 row, got " << resp.row_count() << std::endl;
         return 1;
     }
     std::string status = resp.arrays(0).string_array().values(0);
     if (status != "success") {
-        std::cerr << "Expected status=success, got: " << status << std::endl;
+        std::cerr << "status=" << status << std::endl;
         return 1;
     }
-    int64_t num_vertices    = resp.arrays(1).int64_array().values(0);
-    int64_t num_communities = resp.arrays(2).int64_array().values(0);
-    double  modularity      = resp.arrays(3).double_array().values(0);
-    int64_t levels          = resp.arrays(4).int64_array().values(0);
-    std::string result_file = resp.arrays(5).string_array().values(0);
+    out.num_vertices    = resp.arrays(1).int64_array().values(0);
+    out.num_communities = resp.arrays(2).int64_array().values(0);
+    out.modularity      = resp.arrays(3).double_array().values(0);
+    out.levels          = resp.arrays(4).int64_array().values(0);
+    out.result_file     = resp.arrays(5).string_array().values(0);
 
-    std::cout << "  Country vertices:  " << num_vertices << std::endl;
-    std::cout << "  Communities:       " << num_communities << std::endl;
-    std::cout << "  Modularity:        " << modularity << std::endl;
-    std::cout << "  Levels:            " << levels << std::endl;
-    std::cout << "  Result file:       " << result_file << std::endl;
+    std::cout << "  vertices=" << out.num_vertices
+              << " communities=" << out.num_communities
+              << " modularity=" << out.modularity
+              << " levels=" << out.levels << std::endl;
+    std::cout << "  Result file: " << out.result_file << std::endl;
 
-    // Sanity invariants for a country-level co-author graph:
-    //   - At least a handful of countries should be present (OpenAIRE is global)
-    //   - Modularity for a meaningful community partition is in [-0.5, 1.0]
-    //   - At least 1 community, <= num_vertices
-    if (num_vertices < 5) {
-        std::cerr << "Suspiciously few countries (" << num_vertices
-                  << ") — window may be empty or edge not found" << std::endl;
-        return 1;
-    }
-    if (num_communities < 1 || num_communities > num_vertices) {
-        std::cerr << "Invalid community count: " << num_communities
+    if (out.num_vertices < 5) {
+        std::cerr << "  Suspiciously few countries; window may be empty"
                   << std::endl;
         return 1;
     }
-    if (modularity < -0.5 || modularity > 1.0) {
-        std::cerr << "Modularity out of sane range: " << modularity
-                  << std::endl;
+    if (out.num_communities < 1 || out.num_communities > out.num_vertices) {
+        std::cerr << "  Invalid community count" << std::endl;
+        return 1;
+    }
+    if (out.modularity < -0.5 || out.modularity > 1.0) {
+        std::cerr << "  Modularity out of range" << std::endl;
         return 1;
     }
 
-    if (!validateCoauthorCSV(result_file, num_vertices, num_communities)) {
+    // Parse CSV into country_to_comm (doubles as content validation).
+    std::ifstream ifs(out.result_file);
+    if (!ifs.is_open()) {
+        std::cerr << "  Cannot open result CSV" << std::endl;
         return 1;
     }
-
+    std::string header;
+    std::getline(ifs, header);
+    if (header != "global_id,country_code,community_id") {
+        std::cerr << "  Unexpected header: " << header << std::endl;
+        return 1;
+    }
+    std::string line;
+    int64_t row_count = 0;
+    while (std::getline(ifs, line)) {
+        if (line.empty()) continue;
+        row_count++;
+        std::stringstream ss(line);
+        std::string gid_str, cc_str, comm_str;
+        std::getline(ss, gid_str, ',');
+        std::getline(ss, cc_str, ',');
+        std::getline(ss, comm_str, ',');
+        if (cc_str.empty()) {
+            std::cerr << "  Empty country_code on row " << row_count
+                      << std::endl;
+            return 1;
+        }
+        out.country_to_comm[cc_str] = std::stoi(comm_str);
+    }
+    if (row_count != out.num_vertices) {
+        std::cerr << "  Row count mismatch: CSV=" << row_count
+                  << " reported=" << out.num_vertices << std::endl;
+        return 1;
+    }
+    std::cout << "  Loaded " << out.country_to_comm.size()
+              << " countries into pivot" << std::endl;
     std::cout << "  PASSED" << std::endl;
     return 0;
+}
+
+// Emit a pivot CSV with header `country_code,w_<label1>,w_<label2>,...`
+// where each cell holds the community_id for that country in that window
+// (blank if the country did not appear in the window).
+// Community ids are NOT comparable across windows (Louvain renumbers each run),
+// so this table is useful for spotting structural changes, not absolute labels.
+void writePivotCSV(const std::vector<WindowResult>& windows,
+                   const std::string& out_path) {
+    std::set<std::string> all_countries;
+    for (const auto& w : windows) {
+        for (const auto& kv : w.country_to_comm) {
+            all_countries.insert(kv.first);
+        }
+    }
+
+    std::ofstream ofs(out_path);
+    if (!ofs.is_open()) {
+        std::cerr << "Cannot open pivot output: " << out_path << std::endl;
+        return;
+    }
+    ofs << "country_code";
+    for (const auto& w : windows) ofs << ",w_" << w.label;
+    ofs << "\n";
+    for (const auto& cc : all_countries) {
+        ofs << cc;
+        for (const auto& w : windows) {
+            auto it = w.country_to_comm.find(cc);
+            ofs << ",";
+            if (it != w.country_to_comm.end()) ofs << it->second;
+        }
+        ofs << "\n";
+    }
+    ofs.close();
+
+    std::cout << "\nPivot written to: " << out_path << std::endl;
+    std::cout << "  " << all_countries.size() << " countries × "
+              << windows.size() << " windows" << std::endl;
+    std::cout << "\n  Modularity trajectory:" << std::endl;
+    for (const auto& w : windows) {
+        std::cout << "    " << w.label
+                  << ": modularity=" << w.modularity
+                  << " communities=" << w.num_communities
+                  << " vertices=" << w.num_vertices << std::endl;
+    }
 }
 
 int testLouvain(neug::Connection* conn,
@@ -403,10 +491,30 @@ int main() {
                                kLouvainResolution,
                                kLouvainMaxLevels);
 
-    // Case A Level-1 smoke test: country-level co-author Louvain over
-    // a single pre-war window (W3 in the spec). Swap years to test other
-    // windows.
-    failures += testLouvainCoauthor(conn.get(), 2020, 2021);
+    // Case A 4-window sweep: pre-war deep baseline, COVID-era baseline,
+    // war-onset acute window, war-steady-state. The pivot CSV emitted at
+    // the end lets us diff country → community membership across windows
+    // to spot RU/UA/BY migrations, CN/US drift, and IR trajectory.
+    const std::vector<std::pair<int64_t, int64_t>> kWindows = {
+        {2018, 2019},
+        {2020, 2021},
+        {2022, 2023},
+        {2024, 2024},
+    };
+    std::vector<WindowResult> window_results;
+    window_results.reserve(kWindows.size());
+    for (const auto& [ymin, ymax] : kWindows) {
+        WindowResult wr;
+        failures += runCoauthorWindow(conn.get(), ymin, ymax, wr);
+        window_results.push_back(std::move(wr));
+    }
+
+    const auto pivot_ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    const std::string pivot_path =
+        "/tmp/p/neug_louvain/pivot_country_community_" +
+        std::to_string(pivot_ts) + ".csv";
+    writePivotCSV(window_results, pivot_path);
 
     std::cout << "\n============================================" << std::endl;
     if (failures == 0) {
