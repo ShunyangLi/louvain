@@ -1,0 +1,14 @@
+cibuildwheel>=2.0.0
+pytest>=6.2.5
+importlib_resources
+black>=23.3.0, <=25.9.0
+flake8>=6.0.0
+isort==5.10.1
+neo4j>=4.4.19
+pytest-benchmark[histogram]==5.1.0
+pytest-html==4.1.1
+allure-pytest==2.14.1
+importlib-metadata>=5.0.0
+pyyaml>=6.0.0
+pytest-asyncio>=1.0.0
+networkx>=3.4.2

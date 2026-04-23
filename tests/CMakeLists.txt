@@ -1,0 +1,7 @@
+add_subdirectory(compiler)
+add_subdirectory(execution)
+add_subdirectory(storage)
+add_subdirectory(transaction)
+add_subdirectory(unittest)
+add_subdirectory(utils)
+add_subdirectory(main)

@@ -1,0 +1,66 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE BasicTests
+
+-LOG Basic1
+-STATEMENT MATCH (a:person) RETURN COUNT(a)
+---- 1
+8
+
+-LOG Basic2
+-STATEMENT MATCH (a) RETURN COUNT(a)
+---- 1
+14
+
+
+-LOG Basic3
+-STATEMENT MATCH (a:person)-[e:knows]->(b:person) RETURN COUNT(a)
+---- 1
+14
+
+-LOG Basic4
+-STATEMENT MATCH (a)-[e]->(b) RETURN COUNT(a)
+---- 1
+30
+
+-LOG AspMultiLabel
+-STATEMENT MATCH (a:person)-[e1:knows|:studyAt|:workAt]->(b:person:organisation) WHERE a.age > 35 RETURN b.fName, b.name
+---- 4
+Alice|
+Bob|
+Dan|
+|CsWork
+
+-LOG TestTestFrameworkWithOkResults
+-STATEMENT MATCH (a:person) RETURN COUNT(a)
+---- ok
+
+-LOG TestTestFrameworkWithErrorResults
+-STATEMENT MATCH (a:person RETURN COUNT(a)
+---- error
+-Parser exception: Invalid input <MATCH (a:person RETURN>: expected rule oC_SingleQuery (line: 1, offset: 16)
+
+-LOG TestTestFrameworkWithDoubleResults
+-STATEMENT MATCH (n:organisation) RETURN n.rating
+---- 3
+1.000000
+0.780000
+0.520000
+
+-LOG TestTestFrameworkWithDoubleInvolvedResults
+-STATEMENT MATCH (n:organisation) RETURN n.ID, n.name, n.rating
+---- 3
+1|ABFsUni|1.000000
+4|CsWork|0.780000
+6|DEsWork|0.520000
+
+-LOG TestTestFrameworkWithVertexResults
+-STATEMENT Match (p:person) return p limit 1
+---- 1
+{'_ID': 0, '_LABEL': 'person', 'ID': 0, 'fName': 'Alice', 'gender': 1, 'isStudent': True, 'isWorker': False, 'age': 35, 'eyeSight': 5.0, 'birthdate': '1900-01-01', 'registerTime': '2011-08-20T11:25:30Z', 'lastJobDuration': '3 years 2 days 13 hours 2 minutes', 'workedHours': '[10,5]', 'usedNames': '[Aida]', 'courseScoresPerTerm': '[[10,8],[6,7,8]]', 'grades': '[96,54,86,92]', 'height': 1.731, 'u': 'A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11'}
+
+-STATEMENT MATCH (n:organisation) where n.ID=1 RETURN n
+---- 1
+{'_ID': 72057594037927936, '_LABEL': 'organisation', 'ID': 1, 'name': 'ABFsUni', 'orgCode': 325, 'mark': 3.7, 'score': -2, 'history': '10 years 5 months 13 hours 24 us', 'licenseValidInterval': '3 years 5 days', 'rating': 1.0, 'state': "{'revenue': 138, location: ['toronto', 'montr,eal'], stock: {price: [96, 56], volume: 1000}}", 'info': '3.12'}

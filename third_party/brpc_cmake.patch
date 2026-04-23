@@ -1,0 +1,71 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 30076bf2..f1da1f21 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -33,6 +33,7 @@ option(BUILD_UNIT_TESTS "Whether to build unit tests" OFF)
+ option(BUILD_FUZZ_TESTS "Whether to build fuzz tests" OFF)
+ option(BUILD_BRPC_TOOLS "Whether to build brpc tools" ON)
+ option(DOWNLOAD_GTEST "Download and build a fresh copy of googletest. Requires Internet access." ON)
++add_definitions(-DNO_PTHREAD_MUTEX_HOOK)
+ 
+ # Enable MACOSX_RPATH. Run "cmake --help-policy CMP0042" for policy details.
+ if(POLICY CMP0042)
+@@ -169,12 +170,27 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+     endif()
+ endif()
+ 
+-find_package(Protobuf REQUIRED)
++# If protobuf targets already exist (built from parent project's add_subdirectory),
++# skip find_package to avoid picking up a different system-installed version.
++if(TARGET protobuf::libprotobuf)
++    set(PROTOBUF_FOUND TRUE)
++    set(Protobuf_FOUND TRUE)
++    set(Protobuf_VERSION 29.6)
++    set(PROTOBUF_INCLUDE_DIRS ${Protobuf_INCLUDE_DIRS})
++    set(PROTOBUF_INCLUDE_DIR ${Protobuf_INCLUDE_DIR})
++    set(PROTOBUF_LIBRARIES protobuf::libprotobuf)
++    set(PROTOBUF_PROTOC_EXECUTABLE ${Protobuf_PROTOC_EXECUTABLE})
++else()
++    find_package(Protobuf REQUIRED)
++endif()
+ if(Protobuf_VERSION GREATER 4.21)
+     # required by absl
+     set(CMAKE_CXX_STANDARD 17)
+ 
+-    find_package(absl REQUIRED CONFIG)
++    # If absl targets already exist (e.g. built as part of protobuf subdirectory), skip find_package
++    if(NOT TARGET absl::strings)
++        find_package(absl REQUIRED CONFIG)
++    endif()
+     set(protobuf_ABSL_USED_TARGETS
+         absl::absl_check
+         absl::absl_log
+@@ -538,7 +554,9 @@ set(PROTO_FILES idl_options.proto
+                 brpc/streaming_rpc_meta.proto
+                 brpc/proto_base.proto)
+ file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/output/include/brpc)
+-set(PROTOC_FLAGS ${PROTOC_FLAGS} -I${PROTOBUF_INCLUDE_DIR})
++foreach(_proto_include IN LISTS PROTOBUF_INCLUDE_DIRS)
++    set(PROTOC_FLAGS ${PROTOC_FLAGS} -I${_proto_include})
++endforeach()
+ compile_proto(PROTO_HDRS PROTO_SRCS ${PROJECT_BINARY_DIR}
+                                     ${PROJECT_BINARY_DIR}/output/include
+                                     ${PROJECT_SOURCE_DIR}/src
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 1b4b2332..ed4f2c0b 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -74,6 +74,13 @@ set(protoc_gen_mcpack_SOURCES
+  )
+     
+ add_executable(protoc-gen-mcpack ${protoc_gen_mcpack_SOURCES})
++set_target_properties(protoc-gen-mcpack PROPERTIES
++    CXX_STANDARD 17
++    CXX_STANDARD_REQUIRED ON
++)
++target_compile_options(protoc-gen-mcpack PRIVATE
++    $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>
++)
+ 
+ if(BUILD_SHARED_LIBS)
+     add_library(brpc-shared SHARED $<TARGET_OBJECTS:BUTIL_LIB> 

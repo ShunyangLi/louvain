@@ -1,0 +1,127 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "source": {
+      "extension_name": "CSV_SCAN(STRING)",
+      "entry_schema": {
+       "column_names": [
+        "from",
+        "to",
+        "weight"
+       ],
+       "column_types": [
+        {
+         "primitive_type": "DT_SIGNED_INT64"
+        },
+        {
+         "primitive_type": "DT_SIGNED_INT64"
+        },
+        {
+         "primitive_type": "DT_DOUBLE"
+        }
+       ]
+      },
+      "file_schema": {
+       "paths": [
+        "DML_RESOURCE/knows.csv"
+       ],
+       "format": "csv",
+       "protocol": "",
+       "options": {}
+      },
+      "skip_columns": []
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "load_edge": {
+      "edge_type": {
+       "type_name": {
+        "id": 0
+       },
+       "src_type_name": {
+        "id": 0
+       },
+       "dst_type_name": {
+        "id": 0
+       }
+      },
+      "source_vertex_binding": [],
+      "destination_vertex_binding": [],
+      "property_mappings": [
+       {
+        "property": {
+         "key": {
+          "name": "id"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 0
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "id"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 1
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "weight"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 2
+            }
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}

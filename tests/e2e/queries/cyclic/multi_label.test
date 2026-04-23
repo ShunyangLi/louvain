@@ -1,0 +1,16 @@
+-DATASET CSV tinysnb
+-TEST_FWD_ONLY_REL
+--
+
+-CASE CyclicMultiLabel
+
+# TODO: COMPILATION: pattern with multi-edges is not supported yet in compiler
+# -LOG MultiLabelCyclicTest
+# -STATEMENT MATCH (a:person)-[:workAt|:knows|:studyAt]->(b:organisation), (a)-[:workAt]->(b) RETURN COUNT(*)
+# ---- 1
+# 3
+
+-LOG MultiLabelTriangleTest
+-STATEMENT MATCH (a:person)-[:knows]->(b:person)-[:studyAt|:meets]->(c:organisation:person), (a)-[:studyAt|:meets]->(c) RETURN COUNT(*)
+---- 1
+4

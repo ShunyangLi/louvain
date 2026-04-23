@@ -1,0 +1,47 @@
+{
+ "plan_id": 0,
+ "ddl_plan": {
+  "create_vertex_schema": {
+   "vertex_type": {
+    "name": "User"
+   },
+   "properties": [
+    {
+     "name": "name",
+     "type": {
+      "string": {
+       "var_char": {
+        "max_length": 65536
+       }
+      }
+     },
+     "default_value": {
+      "str": ""
+     }
+    },
+    {
+     "name": "age",
+     "type": {
+      "primitive_type": "DT_SIGNED_INT64"
+     },
+     "default_value": {
+      "i64": "0"
+     }
+    },
+    {
+     "name": "reg_date",
+     "type": {
+      "primitive_type": "DT_SIGNED_INT64"
+     },
+     "default_value": {
+      "i64": "0"
+     }
+    }
+   ],
+   "primary_key": [
+    "name"
+   ],
+   "conflict_action": "ON_CONFLICT_THROW"
+  }
+ }
+}

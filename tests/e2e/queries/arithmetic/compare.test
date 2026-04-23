@@ -1,0 +1,177 @@
+-DATASET CSV tinysnb
+
+--
+
+-CASE CompareTest
+
+-LOG EqualTo
+-STATEMENT RETURN (1 = 1)
+---- 1
+True
+
+-LOG EqualTo
+-STATEMENT RETURN (1 = 2)
+---- 1
+False
+
+-LOG NotEqualTo
+-STATEMENT RETURN (1 <> 2)
+---- 1
+True
+
+-LOG NotEqualTo
+-STATEMENT RETURN (1 <> 1)
+---- 1
+False
+
+-LOG LessThan
+-STATEMENT RETURN (1 < 2)
+---- 1
+True
+
+-LOG LessThan
+-STATEMENT RETURN (1 < 1)
+---- 1
+False
+
+-LOG LessThan
+-STATEMENT RETURN (1 < 0)
+---- 1
+False
+
+-LOG LessThanOrEqualTo
+-STATEMENT RETURN (1 <= 2)
+---- 1
+True
+
+-LOG LessThanOrEqualTo
+-STATEMENT RETURN (1 <= 1)
+---- 1
+True
+
+-LOG LessThanOrEqualTo
+-STATEMENT RETURN (1 <= 0)
+---- 1
+False
+
+-LOG GreaterThan
+-STATEMENT RETURN (2 > 1)
+---- 1
+True
+
+-LOG GreaterThan
+-STATEMENT RETURN (1 > 1)
+---- 1
+False
+
+-LOG GreaterThan
+-STATEMENT RETURN (0 > 1)
+---- 1
+False
+
+-LOG GreaterThanOrEqualTo
+-STATEMENT RETURN (2 >= 1)
+---- 1
+True
+
+-LOG GreaterThanOrEqualTo
+-STATEMENT RETURN (1 >= 1)
+---- 1
+True
+
+-LOG GreaterThanOrEqualTo
+-STATEMENT RETURN (0 >= 1)
+---- 1
+False
+
+-LOG EqualToNull
+-SKIP: return empty, expected `NULL`
+-STATEMENT RETURN (NULL = NULL)
+---- 1
+NULL
+
+-LOG EqualToNull
+-SKIP: return empty, expected NULL
+-STATEMENT RETURN (NULL = 1)
+---- 1
+NULL
+
+-LOG EqualToNull
+-STATEMENT RETURN (1 = NULL)
+---- 1
+
+
+-LOG NotEqualToNull
+-STATEMENT RETURN (NULL <> NULL)
+---- 1
+
+
+-LOG NotEqualToNull
+-STATEMENT RETURN (NULL <> 1)
+---- 1
+
+
+-LOG NotEqualToNull
+-STATEMENT RETURN (1 <> NULL)
+---- 1
+
+
+-LOG LessThanNull
+-STATEMENT RETURN (NULL < NULL)
+---- 1
+
+
+-LOG LessThanNull
+-STATEMENT RETURN (NULL < 1)
+---- 1
+
+
+-LOG LessThanNull
+-STATEMENT RETURN (1 < NULL)
+---- 1
+
+
+-LOG LessThanOrEqualToNull
+-STATEMENT RETURN (NULL <= NULL)
+---- 1
+
+
+-LOG LessThanOrEqualToNull
+-STATEMENT RETURN (NULL <= 1)
+---- 1
+
+
+-LOG LessThanOrEqualToNull
+-STATEMENT RETURN (1 <= NULL)
+---- 1
+
+
+-LOG GreaterThanNull
+-STATEMENT RETURN (NULL > NULL)
+---- 1
+
+
+-LOG GreaterThanNull
+-STATEMENT RETURN (NULL > 1)
+---- 1
+
+
+-LOG GreaterThanNull
+-STATEMENT RETURN (1 > NULL)
+---- 1
+
+
+-LOG GreaterThanOrEqualToNull
+-STATEMENT RETURN (NULL >= NULL)
+---- 1
+
+
+-LOG GreaterThanOrEqualToNull
+-STATEMENT RETURN (NULL >= 1)
+---- 1
+
+
+-LOG GreaterThanOrEqualToNull
+-STATEMENT RETURN (1 >= NULL)
+---- 1
+

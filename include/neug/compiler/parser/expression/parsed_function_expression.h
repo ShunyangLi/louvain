@@ -1,0 +1,116 @@
+/**
+ * Copyright 2020 Alibaba Group Holding Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file is originally from the Kùzu project
+ * (https://github.com/kuzudb/kuzu) Licensed under the MIT License. Modified by
+ * Zhou Xiaoli in 2025 to support Neug-specific features.
+ */
+
+#pragma once
+
+#include "neug/compiler/common/string_utils.h"
+#include "parsed_expression.h"
+
+namespace neug {
+namespace parser {
+
+class ParsedFunctionExpression : public ParsedExpression {
+  static constexpr common::ExpressionType expressionType_ =
+      common::ExpressionType::FUNCTION;
+
+ public:
+  ParsedFunctionExpression(std::string functionName, std::string rawName,
+                           bool isDistinct = false)
+      : ParsedExpression{expressionType_, std::move(rawName)},
+        isDistinct{isDistinct},
+        functionName{std::move(functionName)} {}
+
+  ParsedFunctionExpression(std::string functionName,
+                           std::unique_ptr<ParsedExpression> child,
+                           std::string rawName, bool isDistinct = false)
+      : ParsedExpression{expressionType_, std::move(child), std::move(rawName)},
+        isDistinct{isDistinct},
+        functionName{std::move(functionName)} {}
+
+  ParsedFunctionExpression(std::string functionName,
+                           std::unique_ptr<ParsedExpression> left,
+                           std::unique_ptr<ParsedExpression> right,
+                           std::string rawName, bool isDistinct = false)
+      : ParsedExpression{expressionType_, std::move(left), std::move(right),
+                         std::move(rawName)},
+        isDistinct{isDistinct},
+        functionName{std::move(functionName)} {}
+
+  ParsedFunctionExpression(std::string alias, std::string rawName,
+                           parsed_expr_vector children,
+                           std::string functionName, bool isDistinct,
+                           std::vector<std::string> optionalArguments)
+      : ParsedExpression{expressionType_, std::move(alias), std::move(rawName),
+                         std::move(children)},
+        isDistinct{isDistinct},
+        functionName{std::move(functionName)},
+        optionalArguments{std::move(optionalArguments)} {}
+
+  ParsedFunctionExpression(std::string functionName, bool isDistinct)
+      : ParsedExpression{expressionType_},
+        isDistinct{isDistinct},
+        functionName{std::move(functionName)} {}
+
+  bool getIsDistinct() const { return isDistinct; }
+
+  std::string getFunctionName() const { return functionName; }
+  std::string getNormalizedFunctionName() const {
+    return common::StringUtils::getUpper(functionName);
+  }
+
+  void addChild(std::unique_ptr<ParsedExpression> child) {
+    children.push_back(std::move(child));
+  }
+
+  void addOptionalParams(std::string name,
+                         std::unique_ptr<ParsedExpression> child) {
+    optionalArguments.push_back(std::move(name));
+    children.push_back(std::move(child));
+  }
+
+  std::vector<std::string> getOptionalArguments() const {
+    return optionalArguments;
+  }
+
+  static std::unique_ptr<ParsedFunctionExpression> deserialize(
+      common::Deserializer& deserializer);
+
+  std::unique_ptr<ParsedExpression> copy() const override {
+    return std::make_unique<ParsedFunctionExpression>(
+        alias, rawName, copyVector(children), functionName, isDistinct,
+        optionalArguments);
+  }
+
+ private:
+  void serializeInternal(common::Serializer& serializer) const override;
+
+ private:
+  bool isDistinct;
+  std::string functionName;
+  // In Kuzu, function arguments must be either all required or all optional -
+  // mixing required and optional parameters in the same function is not
+  // allowed.
+  std::vector<std::string> optionalArguments;
+};
+
+}  // namespace parser
+}  // namespace neug

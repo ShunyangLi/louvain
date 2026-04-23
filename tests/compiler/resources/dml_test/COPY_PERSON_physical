@@ -1,0 +1,123 @@
+{
+ "plan_id": 0,
+ "query_plan": {
+  "mode": "READ_WRITE",
+  "plan": [
+   {
+    "opr": {
+     "source": {
+      "extension_name": "CSV_SCAN(STRING)",
+      "entry_schema": {
+       "column_names": [
+        "id",
+        "name",
+        "age"
+       ],
+       "column_types": [
+        {
+         "primitive_type": "DT_SIGNED_INT64"
+        },
+        {
+         "string": {
+          "var_char": {
+           "max_length": 65536
+          }
+         }
+        },
+        {
+         "primitive_type": "DT_SIGNED_INT64"
+        }
+       ]
+      },
+      "file_schema": {
+       "paths": [
+        "DML_RESOURCE/person.csv"
+       ],
+       "format": "csv",
+       "protocol": "",
+       "options": {
+        "DELIM": "|"
+       }
+      },
+      "skip_columns": []
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "load_vertex": {
+      "vertex_type": {
+       "id": 0
+      },
+      "property_mappings": [
+       {
+        "property": {
+         "key": {
+          "name": "id"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 0
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "name"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 1
+            }
+           }
+          }
+         ]
+        }
+       },
+       {
+        "property": {
+         "key": {
+          "name": "age"
+         }
+        },
+        "data": {
+         "operators": [
+          {
+           "var": {
+            "tag": {
+             "id": 2
+            }
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    },
+    "meta_data": []
+   },
+   {
+    "opr": {
+     "sink": {
+      "tags": []
+     }
+    },
+    "meta_data": []
+   }
+  ]
+ }
+}
