@@ -128,5 +128,7 @@ add_extension_if_enabled("json")
 add_extension_if_enabled("parquet")
 # Add sampled_match extension
 add_extension_if_enabled("sampled_match")
+# Add louvain extension
+add_extension_if_enabled("louvain")
 
 message(STATUS "=== Extension configuration complete ===")
