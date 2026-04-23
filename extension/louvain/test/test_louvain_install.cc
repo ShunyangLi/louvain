@@ -15,8 +15,6 @@
  */
 
 #include <neug/main/neug_db.h>
-#include <neug/compiler/common/file_system/virtual_file_system.h>
-#include <neug/compiler/gopt/g_vfs_holder.h>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -361,9 +359,6 @@ int main() {
     std::cout << "============================================" << std::endl;
     std::cout << "  NeuG Louvain — OpenAire DB" << std::endl;
     std::cout << "============================================" << std::endl;
-
-    auto vfs = std::make_unique<neug::common::VirtualFileSystem>();
-    neug::common::VFSHolder::setVFS(vfs.get());
 
     const std::string db_path = kOpenAireDbPath;
     if (!std::filesystem::exists(db_path)) {

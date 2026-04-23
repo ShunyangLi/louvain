@@ -15,8 +15,6 @@
  */
 
 #include <neug/main/neug_db.h>
-#include <neug/compiler/common/file_system/virtual_file_system.h>
-#include <neug/compiler/gopt/g_vfs_holder.h>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -288,9 +286,6 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "LDBC data path: " << LDBC_DATA_PATH << std::endl;
-
-    auto vfs = std::make_unique<neug::common::VirtualFileSystem>();
-    neug::common::VFSHolder::setVFS(vfs.get());
 
     std::string db_path = "/tmp/neug_louvain_ldbc_db";
 
