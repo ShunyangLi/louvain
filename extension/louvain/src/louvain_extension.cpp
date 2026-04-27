@@ -37,6 +37,10 @@ void Init() {
             neug::function::LouvainInfraCountryFunction>(
             neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
+        neug::extension::ExtensionAPI::registerFunction<
+            neug::function::LouvainDatasourceFunction>(
+            neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+
         neug::extension::ExtensionAPI::registerExtension(
             neug::extension::ExtensionInfo{
                 "louvain",
@@ -53,6 +57,11 @@ void Init() {
                 "(min-coupling over shared datasources) within a year range. "
                 "CALL LOUVAIN_INFRA_COUNTRY(year_min, year_max, min_hosts_per_datasource, "
                 "max_author_orgs, max_iter, resolution, max_levels) - full control. "
+                "CALL LOUVAIN_DATASOURCE(year_min, year_max) - datasource-level Louvain on "
+                "the Datasource×Datasource projection (edge weight = # in-window pubs "
+                "co-hosted), with each datasource annotated by provider org + country. "
+                "CALL LOUVAIN_DATASOURCE(year_min, year_max, min_pubs, max_iter, "
+                "resolution, max_levels) - full control. "
                 "Returns status, num_vertices, num_communities, modularity, levels, "
                 "and result_file."
             });

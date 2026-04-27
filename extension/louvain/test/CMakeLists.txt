@@ -39,11 +39,26 @@ target_link_libraries(case_infra_datasource_country PRIVATE
 )
 add_dependencies(case_infra_datasource_country neug_louvain_extension)
 
+add_executable(case_datasource_louvain case_datasource_louvain.cc)
+
+target_include_directories(case_datasource_louvain PRIVATE
+    ${CMAKE_SOURCE_DIR}/extension/louvain/include
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(case_datasource_louvain PRIVATE
+    neug
+    ${GFLAGS_LIBRARIES}
+)
+add_dependencies(case_datasource_louvain neug_louvain_extension)
+
 add_test(NAME test_louvain_install COMMAND test_louvain_install)
 add_test(NAME test_louvain_ldbc COMMAND test_louvain_ldbc)
 add_test(NAME case_infra_datasource_country COMMAND case_infra_datasource_country)
+add_test(NAME case_datasource_louvain COMMAND case_datasource_louvain)
 
 install(TARGETS test_louvain_install test_louvain_ldbc
                 case_infra_datasource_country
+                case_datasource_louvain
     RUNTIME DESTINATION bin
 )

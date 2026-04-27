@@ -29,7 +29,7 @@
 
 // NeuG data directory (contains graph.yaml, checkpoint/, etc.).
 static constexpr const char* kOpenAireDbPath =
-    "/mnt/lyk/openaire_18_26_neug/neug_db_1775109652105";
+    "/mnt/shunyangl/louvain/tools/python_bind/openaire";
 
 static constexpr int64_t kLouvainMaxIterations = 20;
 static constexpr double  kLouvainResolution    = 1.0;

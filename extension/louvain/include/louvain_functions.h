@@ -107,6 +107,29 @@ public:
           infra_mode_(true),
           infra_cfg_(cfg) {}
 
+    // Config for the datasource-level projection mode (new case):
+    //   Datasource d1 — Datasource d2  weighted by # in-window publications
+    //   they both host (Datasource —[hosts]→ Publication).
+    //   Each ds is annotated with its provider organization + country_code via
+    //   datasource_isProvidedBy_organization → Organization.country_code.
+    // Question this answers: how do datasources themselves cluster, and does
+    // that clustering align with the geopolitical lines visible in the
+    // co-author Louvain?
+    struct DatasourceConfig {
+        int64_t year_min = 0;        // inclusive
+        int64_t year_max = 0;        // inclusive; year_max < year_min disables filter
+        int min_pubs = 100;          // drop datasources hosting < this many in-window pubs
+    };
+    // Mode 4 (new): datasource projection → datasource-level Louvain.
+    LouvainComputer(const StorageReadInterface& graph, DatasourceConfig cfg,
+                    int max_iterations, double resolution, int max_levels)
+        : graph_(graph),
+          max_iterations_(max_iterations),
+          resolution_(resolution),
+          max_levels_(max_levels),
+          datasource_mode_(true),
+          datasource_cfg_(cfg) {}
+
     struct Result {
         int num_vertices = 0;
         int num_communities = 0;
@@ -115,9 +138,14 @@ public:
         // Parallel arrays indexed by global_id
         std::vector<int> community;       // community assignment per vertex
         std::vector<std::pair<label_t, vid_t>> id_mapping;  // global_id -> (label, vid)
-        // Populated only in coauthor projection mode: the aggregate key (country_code)
-        // for each super-vertex. Empty in plain graph mode.
+        // Populated only in coauthor / infra / datasource projection modes:
+        // for coauthor and infra-country these are country_code strings,
+        // for datasource these are datasource_id strings.
         std::vector<std::string> aggregate_keys;
+        // Populated only in datasource mode: per super-vertex annotations of
+        // the form "<provider_org_id>|<provider_country_code>" (either field
+        // may be empty if not resolvable).
+        std::vector<std::string> aggregate_extra;
     };
 
     Result Compute() {
@@ -136,12 +164,15 @@ public:
             BuildCountryCoauthorProjection();
         } else if (infra_mode_) {
             BuildInfraCountryProjection();
+        } else if (datasource_mode_) {
+            BuildDatasourceProjection();
         } else {
             BuildGraph();
         }
         result.num_vertices = num_vertex_;
         result.id_mapping = global_to_local_;
         result.aggregate_keys = aggregate_keys_;
+        result.aggregate_extra = aggregate_extra_;
 
         if (num_vertex_ == 0) {
             LOG(INFO) << "[Louvain] Empty graph, nothing to compute.";
@@ -1124,6 +1155,276 @@ private:
                   << "ms";
     }
 
+    // Build the datasource-level projection (new case):
+    //   vertices = Datasource (after min_pubs filter)
+    //   edges    = w(d1, d2) = # in-window publications hosted by both
+    //
+    // Each super-vertex is annotated with one "<provider_org_id>|<country_code>"
+    // string from datasource_isProvidedBy_organization → Organization.country_code.
+    //
+    // Implementation:
+    //   Pass 1: scan Publications, mark in-window pubs.
+    //   Pass 2: scan Datasource→Publication edges, build per-ds in-window pub
+    //           lists; drop datasources with < min_pubs.
+    //   Pass 3: for each in-window pub, enumerate the cross-pairs of
+    //           datasources that host it, increment agg by 1. Sparse symmetric
+    //           aggregator (a < b only).
+    //   Pass 4: scan Datasource→Organization edges, for each kept ds resolve
+    //           the first provider org with a non-empty country_code.
+    void BuildDatasourceProjection() {
+        auto tstart = std::chrono::steady_clock::now();
+        const auto& schema = graph_.schema();
+
+        label_t pub_label, org_label, ds_label;
+        try {
+            pub_label = schema.get_vertex_label_id("Publication");
+            org_label = schema.get_vertex_label_id("Organization");
+            ds_label  = schema.get_vertex_label_id("Datasource");
+        } catch (...) {
+            LOG(ERROR) << "[Louvain-ds] Publication/Organization/Datasource label missing";
+            return;
+        }
+        label_t ds_pub_edge_label = static_cast<label_t>(-1);
+        label_t ds_org_edge_label = static_cast<label_t>(-1);
+        for (const auto& [key, _] : schema.get_all_edge_schemas()) {
+            auto [src, dst, e] = schema.parse_edge_label(key);
+            if (src == ds_label && dst == pub_label && ds_pub_edge_label == static_cast<label_t>(-1)) {
+                ds_pub_edge_label = e;
+            }
+            if (src == ds_label && dst == org_label && ds_org_edge_label == static_cast<label_t>(-1)) {
+                ds_org_edge_label = e;
+            }
+        }
+        if (ds_pub_edge_label == static_cast<label_t>(-1)) {
+            LOG(ERROR) << "[Louvain-ds] No edge Datasource→Publication found";
+            return;
+        }
+        // ds_org edge is informational; OK if missing — annotations will be empty.
+        LOG(INFO) << "[Louvain-ds] pub_label=" << (int)pub_label
+                  << " org_label=" << (int)org_label
+                  << " ds_label=" << (int)ds_label
+                  << " ds_pub_edge_label=" << (int)ds_pub_edge_label
+                  << " ds_org_edge_label=" << (int)ds_org_edge_label;
+
+        auto year_col_base = graph_.GetVertexPropColumn(pub_label, "year");
+        auto year_col = std::dynamic_pointer_cast<TypedRefColumn<int64_t>>(year_col_base);
+        if (!year_col) {
+            LOG(ERROR) << "[Louvain-ds] Publication.year is not INT64";
+            return;
+        }
+        auto cc_col_base = graph_.GetVertexPropColumn(org_label, "country_code");
+        auto cc_col = std::dynamic_pointer_cast<TypedRefColumn<std::string_view>>(cc_col_base);
+        if (!cc_col) {
+            LOG(ERROR) << "[Louvain-ds] Organization.country_code is not STRING";
+            return;
+        }
+        auto org_id_col_base = graph_.GetVertexPropColumn(org_label, "id");
+        auto org_id_col = std::dynamic_pointer_cast<TypedRefColumn<std::string_view>>(org_id_col_base);
+        // org_id_col may be missing — we handle that.
+        auto ds_id_col_base = graph_.GetVertexPropColumn(ds_label, "id");
+        auto ds_id_col = std::dynamic_pointer_cast<TypedRefColumn<std::string_view>>(ds_id_col_base);
+
+        VertexSet pub_set = graph_.GetVertexSet(pub_label);
+        VertexSet org_set = graph_.GetVertexSet(org_label);
+        VertexSet ds_set  = graph_.GetVertexSet(ds_label);
+        const size_t num_pubs = pub_set.size();
+        const size_t num_orgs = org_set.size();
+        const size_t num_datasources = ds_set.size();
+
+        // --- Pass 1: in-window pub mask ---
+        const bool year_filter_active =
+            datasource_cfg_.year_max >= datasource_cfg_.year_min;
+        std::vector<uint8_t> pub_in_window(num_pubs, 0);
+        int64_t in_window_count = 0;
+        for (size_t i = 0; i < num_pubs; ++i) {
+            vid_t pub_vid = static_cast<vid_t>(i);
+            if (!graph_.IsValidVertex(pub_label, pub_vid)) continue;
+            if (year_filter_active) {
+                int64_t y = year_col->get_view(i);
+                if (y < datasource_cfg_.year_min ||
+                    y > datasource_cfg_.year_max) continue;
+            }
+            pub_in_window[i] = 1;
+            ++in_window_count;
+        }
+        auto t1 = std::chrono::steady_clock::now();
+        LOG(INFO) << "[Louvain-ds] Pass 1 done: in_window=" << in_window_count
+                  << " / " << num_pubs << " pubs in "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - tstart).count()
+                  << "ms";
+
+        // --- Pass 2: per-ds in-window pub list ---
+        GenericView ds_pub_view = graph_.GetGenericOutgoingGraphView(
+            ds_label, pub_label, ds_pub_edge_label);
+        std::vector<std::vector<int>> ds_pubs(num_datasources);
+        std::vector<int> ds_pub_count(num_datasources, 0);
+        int64_t total_ds_pub_edges = 0;
+        for (size_t i = 0; i < num_datasources; ++i) {
+            vid_t ds_vid = static_cast<vid_t>(i);
+            if (!graph_.IsValidVertex(ds_label, ds_vid)) continue;
+            NbrList edges = ds_pub_view.get_edges(ds_vid);
+            std::unordered_set<int> seen;
+            seen.reserve(64);
+            for (auto it = edges.begin(); it != edges.end(); ++it) {
+                vid_t pub_vid = *it;
+                if (static_cast<size_t>(pub_vid) >= num_pubs) continue;
+                if (!pub_in_window[pub_vid]) continue;
+                if (!seen.insert(static_cast<int>(pub_vid)).second) continue;
+                ds_pubs[i].push_back(static_cast<int>(pub_vid));
+                ++total_ds_pub_edges;
+            }
+            std::sort(ds_pubs[i].begin(), ds_pubs[i].end());
+            ds_pub_count[i] = static_cast<int>(ds_pubs[i].size());
+        }
+
+        // Filter: keep only datasources with ds_pub_count >= min_pubs.
+        const int min_pubs = datasource_cfg_.min_pubs;
+        std::vector<int> ds_keep;
+        ds_keep.reserve(num_datasources);
+        for (size_t i = 0; i < num_datasources; ++i) {
+            if (ds_pub_count[i] >= min_pubs && !ds_pubs[i].empty()) {
+                ds_keep.push_back(static_cast<int>(i));
+            }
+        }
+        const int num_kept = static_cast<int>(ds_keep.size());
+        // ds_vid -> compact super-vertex id (or -1 if dropped).
+        std::vector<int> ds_to_super(num_datasources, -1);
+        for (int s = 0; s < num_kept; ++s) ds_to_super[ds_keep[s]] = s;
+        auto t2 = std::chrono::steady_clock::now();
+        LOG(INFO) << "[Louvain-ds] Pass 2 done: ds_kept=" << num_kept
+                  << " / " << num_datasources
+                  << " (min_pubs=" << min_pubs << ")"
+                  << " total_ds_pub_edges=" << total_ds_pub_edges
+                  << " in "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
+                  << "ms";
+
+        if (num_kept == 0) {
+            num_vertex_ = 0;
+            return;
+        }
+
+        // --- Pass 3: build inverted index pub → kept-ds list, then enumerate
+        // ds-pairs per pub, accumulating into agg[a][b] (a<b). ---
+        std::vector<std::vector<int>> pub_to_ds(num_pubs);
+        // Bound memory: only kept ds contribute.
+        for (int s = 0; s < num_kept; ++s) {
+            int ds_vid = ds_keep[s];
+            for (int p : ds_pubs[ds_vid]) {
+                pub_to_ds[p].push_back(s);
+            }
+        }
+        // Free original (large) per-ds lists once inverted index is built.
+        std::vector<std::vector<int>>().swap(ds_pubs);
+
+        std::vector<std::unordered_map<int, double>> agg(num_kept);
+        int64_t pair_emits = 0;
+        int64_t big_pubs_skipped = 0;
+        // Cap pubs that are hosted by hundreds of ds (these are CERN-style
+        // mass-hosted records that would explode pair_emits to O(n^2)).
+        constexpr int kPubDsCap = 256;
+        for (int p = 0; p < (int)num_pubs; ++p) {
+            const auto& dsvec = pub_to_ds[p];
+            const int k = static_cast<int>(dsvec.size());
+            if (k < 2) continue;
+            if (k > kPubDsCap) { ++big_pubs_skipped; continue; }
+            // dsvec is naturally sorted (we appended in s-order, which is
+            // ascending in `s`). Enumerate pairs.
+            for (int x = 0; x < k; ++x) {
+                int a = dsvec[x];
+                for (int y = x + 1; y < k; ++y) {
+                    int b = dsvec[y];
+                    agg[a][b] += 1.0;
+                    ++pair_emits;
+                }
+            }
+        }
+        std::vector<std::vector<int>>().swap(pub_to_ds);
+        auto t3 = std::chrono::steady_clock::now();
+        LOG(INFO) << "[Louvain-ds] Pass 3 done: pair_emits=" << pair_emits
+                  << " big_pubs_skipped(>" << kPubDsCap << ")="
+                  << big_pubs_skipped << " in "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count()
+                  << "ms";
+
+        // --- Materialize undirected adjacency ---
+        num_vertex_ = num_kept;
+        adj_.assign(num_vertex_, {});
+        std::vector<size_t> counts(num_vertex_, 0);
+        for (int a = 0; a < num_kept; ++a) {
+            for (auto& [b, w] : agg[a]) {
+                (void)w;
+                counts[a]++;
+                counts[b]++;
+            }
+        }
+        for (int i = 0; i < num_vertex_; ++i) adj_[i].reserve(counts[i]);
+        int64_t total_entries = 0;
+        for (int a = 0; a < num_kept; ++a) {
+            for (auto& [b, w] : agg[a]) {
+                adj_[a].push_back({b, w});
+                adj_[b].push_back({a, w});
+                total_entries += 2;
+            }
+        }
+        num_edge_ = static_cast<int>(total_entries);
+
+        // --- Pass 4: resolve provider org + country_code per kept ds ---
+        // For each kept ds, take the first ds→org edge whose org has a
+        // non-empty country_code.
+        std::vector<std::string> provider_org_id(num_kept);
+        std::vector<std::string> provider_cc(num_kept);
+        if (ds_org_edge_label != static_cast<label_t>(-1)) {
+            GenericView ds_org_view = graph_.GetGenericOutgoingGraphView(
+                ds_label, org_label, ds_org_edge_label);
+            int64_t resolved = 0;
+            for (int s = 0; s < num_kept; ++s) {
+                vid_t ds_vid = static_cast<vid_t>(ds_keep[s]);
+                NbrList oedges = ds_org_view.get_edges(ds_vid);
+                for (auto it = oedges.begin(); it != oedges.end(); ++it) {
+                    vid_t org_vid = *it;
+                    if (static_cast<size_t>(org_vid) >= num_orgs) continue;
+                    if (!graph_.IsValidVertex(org_label, org_vid)) continue;
+                    std::string_view cc = cc_col->get_view(org_vid);
+                    if (cc.empty()) continue;
+                    provider_cc[s] = std::string(cc);
+                    if (org_id_col) {
+                        std::string_view oid = org_id_col->get_view(org_vid);
+                        provider_org_id[s] = std::string(oid);
+                    }
+                    ++resolved;
+                    break;
+                }
+            }
+            LOG(INFO) << "[Louvain-ds] Pass 4 done: resolved provider+country for "
+                      << resolved << " / " << num_kept << " kept datasources";
+        } else {
+            LOG(INFO) << "[Louvain-ds] No Datasource→Organization edge available; "
+                      << "annotations will be empty";
+        }
+
+        // --- Mapping for output CSV ---
+        global_to_local_.assign(num_vertex_, {});
+        aggregate_keys_.resize(num_vertex_);
+        aggregate_extra_.resize(num_vertex_);
+        for (int s = 0; s < num_kept; ++s) {
+            global_to_local_[s] = {ds_label, static_cast<vid_t>(ds_keep[s])};
+            if (ds_id_col) {
+                aggregate_keys_[s] = std::string(ds_id_col->get_view(ds_keep[s]));
+            } else {
+                aggregate_keys_[s] = std::to_string(ds_keep[s]);
+            }
+            aggregate_extra_[s] = provider_org_id[s] + "|" + provider_cc[s];
+        }
+
+        auto tend = std::chrono::steady_clock::now();
+        LOG(INFO) << "[Louvain-ds] Built ds graph: " << num_vertex_
+                  << " vertices, " << total_entries
+                  << " directed adjacency entries, total="
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(tend - tstart).count()
+                  << "ms";
+    }
+
     const StorageReadInterface& graph_;
     int max_iterations_;
     double resolution_;
@@ -1137,6 +1438,10 @@ private:
     bool infra_mode_ = false;
     InfraConfig infra_cfg_;
 
+    // Datasource-projection mode: off by default; set by alternate ctor.
+    bool datasource_mode_ = false;
+    DatasourceConfig datasource_cfg_;
+
     int num_vertex_ = 0;
     int num_edge_ = 0;
 
@@ -1145,8 +1450,13 @@ private:
     std::vector<std::pair<label_t, vid_t>> global_to_local_;
     std::vector<std::vector<std::pair<int, double>>> adj_;  // undirected weighted adjacency
 
-    // Populated only in coauthor projection mode, parallel to global_to_local_.
+    // Populated in coauthor / infra-country / datasource projection modes.
+    // For coauthor + infra-country: country_code per super-vertex.
+    // For datasource: datasource_id per super-vertex.
     std::vector<std::string> aggregate_keys_;
+    // Populated only in datasource mode: "<provider_org_id>|<provider_country_code>"
+    // per super-vertex, parallel to aggregate_keys_.
+    std::vector<std::string> aggregate_extra_;
 };
 
 // ============================================================================
@@ -1833,6 +2143,241 @@ private:
             ofs.close();
         }
         LOG(INFO) << "[LOUVAIN_INFRA_COUNTRY] Results written to: " << outputFile;
+
+        execution::Context ctx;
+
+        execution::ValueColumnBuilder<std::string> statusBuilder;
+        statusBuilder.push_back_opt(std::string("success"));
+        ctx.set(0, statusBuilder.finish());
+
+        execution::ValueColumnBuilder<int64_t> verticesBuilder;
+        verticesBuilder.push_back_opt(static_cast<int64_t>(result.num_vertices));
+        ctx.set(1, verticesBuilder.finish());
+
+        execution::ValueColumnBuilder<int64_t> commBuilder;
+        commBuilder.push_back_opt(static_cast<int64_t>(result.num_communities));
+        ctx.set(2, commBuilder.finish());
+
+        execution::ValueColumnBuilder<double> modBuilder;
+        modBuilder.push_back_opt(result.modularity);
+        ctx.set(3, modBuilder.finish());
+
+        execution::ValueColumnBuilder<int64_t> levelBuilder;
+        levelBuilder.push_back_opt(static_cast<int64_t>(result.levels_completed));
+        ctx.set(4, levelBuilder.finish());
+
+        execution::ValueColumnBuilder<std::string> fileBuilder;
+        fileBuilder.push_back_opt(outputFile);
+        ctx.set(5, fileBuilder.finish());
+
+        ctx.tag_ids = {0, 1, 2, 3, 4, 5};
+        return ctx;
+    }
+};
+
+// ============================================================================
+// LOUVAIN_DATASOURCE — Datasource-level Louvain
+// ============================================================================
+//
+// Builds the datasource × datasource projection from
+//   Datasource —[hosts]→ Publication
+// where w(d1, d2) = # in-window publications co-hosted by both, then runs
+// Louvain on it. Each datasource super-vertex is annotated with a provider
+// organization id + country_code via
+//   datasource_isProvidedBy_organization → Organization.country_code
+//
+// Story: Louvain assigns each datasource a community id based purely on its
+// publication-overlap structure. The provider country annotation lets us ask
+// "do datasources cluster by who runs them?" — and combined with the existing
+// LOUVAIN_COAUTHOR country partition, "does the country-level coauthor split
+// (RU/UA/CN/etc.) propagate down to the platforms those countries run?"
+//
+// Grammar:
+//   CALL LOUVAIN_DATASOURCE(year_min, year_max)
+//   CALL LOUVAIN_DATASOURCE(year_min, year_max,
+//                           min_pubs, max_iter, resolution, max_levels)
+//
+// Output CSV header:
+//   global_id,datasource_id,provider_org_id,provider_country_code,community_id
+// ============================================================================
+
+struct LouvainDatasourceInput : public CallFuncInputBase {
+    int64_t year_min;
+    int64_t year_max;
+    int64_t min_pubs;
+    int64_t max_iter;
+    double  resolution;
+    int64_t max_levels;
+
+    LouvainDatasourceInput(int64_t ymin, int64_t ymax,
+                           int64_t mp = 100, int64_t mi = 20,
+                           double r = 1.0, int64_t ml = 10)
+        : year_min(ymin), year_max(ymax),
+          min_pubs(mp), max_iter(mi),
+          resolution(r), max_levels(ml) {}
+    ~LouvainDatasourceInput() override = default;
+};
+
+struct LouvainDatasourceFunction {
+    static constexpr const char* name = "LOUVAIN_DATASOURCE";
+
+    static function_set getFunctionSet() {
+        function_set functionSet;
+
+        call_output_columns outputCols{
+            {"status", common::LogicalTypeID::STRING},
+            {"num_vertices", common::LogicalTypeID::INT64},
+            {"num_communities", common::LogicalTypeID::INT64},
+            {"modularity", common::LogicalTypeID::DOUBLE},
+            {"levels", common::LogicalTypeID::INT64},
+            {"result_file", common::LogicalTypeID::STRING}
+        };
+
+        // ---- Overload A: (year_min, year_max) ----
+        {
+            auto func = std::make_unique<NeugCallFunction>(
+                name,
+                std::vector<common::LogicalTypeID>{
+                    common::LogicalTypeID::INT64,
+                    common::LogicalTypeID::INT64},
+                call_output_columns(outputCols));
+
+            func->bindFunc = [](const Schema&, const execution::ContextMeta&,
+                                const ::physical::PhysicalPlan& plan, int op_idx)
+                -> std::unique_ptr<CallFuncInputBase> {
+                auto& proc = plan.plan(op_idx).opr().procedure_call();
+                int64_t ymin = 0, ymax = 0;
+                if (proc.query().arguments_size() >= 1 &&
+                    proc.query().arguments(0).has_const_())
+                    ymin = proc.query().arguments(0).const_().i64();
+                if (proc.query().arguments_size() >= 2 &&
+                    proc.query().arguments(1).has_const_())
+                    ymax = proc.query().arguments(1).const_().i64();
+                LOG(INFO) << "[LOUVAIN_DATASOURCE] Bind (short): year_min="
+                          << ymin << " year_max=" << ymax;
+                return std::make_unique<LouvainDatasourceInput>(ymin, ymax);
+            };
+
+            func->execFunc = [](const CallFuncInputBase& input,
+                                IStorageInterface& graph)
+                -> execution::Context {
+                return ExecuteLouvainDatasource(input, graph);
+            };
+
+            functionSet.push_back(std::move(func));
+        }
+
+        // ---- Overload B: full params ----
+        {
+            auto func = std::make_unique<NeugCallFunction>(
+                name,
+                std::vector<common::LogicalTypeID>{
+                    common::LogicalTypeID::INT64,  // year_min
+                    common::LogicalTypeID::INT64,  // year_max
+                    common::LogicalTypeID::INT64,  // min_pubs
+                    common::LogicalTypeID::INT64,  // max_iter
+                    common::LogicalTypeID::DOUBLE, // resolution
+                    common::LogicalTypeID::INT64}, // max_levels
+                call_output_columns(outputCols));
+
+            func->bindFunc = [](const Schema&, const execution::ContextMeta&,
+                                const ::physical::PhysicalPlan& plan, int op_idx)
+                -> std::unique_ptr<CallFuncInputBase> {
+                auto& proc = plan.plan(op_idx).opr().procedure_call();
+                int64_t ymin = 0, ymax = 0, mp = 100, mi = 20, ml = 10;
+                double  r = 1.0;
+                auto& args = proc.query();
+                if (args.arguments_size() >= 1 && args.arguments(0).has_const_())
+                    ymin = args.arguments(0).const_().i64();
+                if (args.arguments_size() >= 2 && args.arguments(1).has_const_())
+                    ymax = args.arguments(1).const_().i64();
+                if (args.arguments_size() >= 3 && args.arguments(2).has_const_())
+                    mp = args.arguments(2).const_().i64();
+                if (args.arguments_size() >= 4 && args.arguments(3).has_const_())
+                    mi = args.arguments(3).const_().i64();
+                if (args.arguments_size() >= 5 && args.arguments(4).has_const_())
+                    r = args.arguments(4).const_().f64();
+                if (args.arguments_size() >= 6 && args.arguments(5).has_const_())
+                    ml = args.arguments(5).const_().i64();
+                LOG(INFO) << "[LOUVAIN_DATASOURCE] Bind (full): year=[" << ymin
+                          << "," << ymax << "] min_pubs=" << mp
+                          << " max_iter=" << mi << " resolution=" << r
+                          << " max_levels=" << ml;
+                return std::make_unique<LouvainDatasourceInput>(
+                    ymin, ymax, mp, mi, r, ml);
+            };
+
+            func->execFunc = [](const CallFuncInputBase& input,
+                                IStorageInterface& graph)
+                -> execution::Context {
+                return ExecuteLouvainDatasource(input, graph);
+            };
+
+            functionSet.push_back(std::move(func));
+        }
+
+        return functionSet;
+    }
+
+private:
+    static execution::Context ExecuteLouvainDatasource(
+            const CallFuncInputBase& input, IStorageInterface& graph) {
+        auto& cInput = static_cast<const LouvainDatasourceInput&>(input);
+
+        auto* readInterface = dynamic_cast<StorageReadInterface*>(&graph);
+        if (!readInterface) {
+            LOG(ERROR) << "[LOUVAIN_DATASOURCE] graph is not a StorageReadInterface!";
+            return execution::Context();
+        }
+
+        LOG(INFO) << "[LOUVAIN_DATASOURCE] Running with year=["
+                  << cInput.year_min << "," << cInput.year_max
+                  << "] min_pubs=" << cInput.min_pubs;
+
+        LouvainComputer::DatasourceConfig cfg;
+        cfg.year_min = cInput.year_min;
+        cfg.year_max = cInput.year_max;
+        cfg.min_pubs = static_cast<int>(cInput.min_pubs);
+
+        LouvainComputer computer(
+            *readInterface, cfg,
+            static_cast<int>(cInput.max_iter),
+            cInput.resolution,
+            static_cast<int>(cInput.max_levels));
+        auto result = computer.Compute();
+
+        std::string outputFile =
+            GenerateLouvainOutputPath("louvain_datasource");
+        {
+            std::ofstream ofs(outputFile);
+            if (!ofs.is_open()) {
+                LOG(ERROR) << "[LOUVAIN_DATASOURCE] Failed to open: "
+                           << outputFile;
+                return execution::Context();
+            }
+            ofs << "global_id,datasource_id,provider_org_id,provider_country_code,community_id\n";
+            for (int i = 0; i < result.num_vertices; ++i) {
+                const std::string& dsid =
+                    (i < (int)result.aggregate_keys.size())
+                        ? result.aggregate_keys[i]
+                        : std::string{};
+                std::string org_id, cc;
+                if (i < (int)result.aggregate_extra.size()) {
+                    const std::string& s = result.aggregate_extra[i];
+                    auto bar = s.find('|');
+                    if (bar != std::string::npos) {
+                        org_id = s.substr(0, bar);
+                        cc = s.substr(bar + 1);
+                    }
+                }
+                // datasource_id may legitimately contain commas; quote it.
+                ofs << i << ",\"" << dsid << "\","
+                    << org_id << "," << cc << ","
+                    << result.community[i] << "\n";
+            }
+            ofs.close();
+        }
+        LOG(INFO) << "[LOUVAIN_DATASOURCE] Results written to: " << outputFile;
 
         execution::Context ctx;
 
