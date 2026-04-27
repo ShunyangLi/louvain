@@ -1,0 +1,2173 @@
+{
+  "vertex_tables": [
+    {
+      "label": "Author",
+      "file_path": "authors.csv",
+      "properties": [
+        {
+          "name": "id",
+          "type": "STRING"
+        },
+        {
+          "name": "fullName",
+          "type": "STRING"
+        },
+        {
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "name": "surname",
+          "type": "STRING"
+        },
+        {
+          "name": "orcid",
+          "type": "STRING"
+        },
+        {
+          "name": "idtype",
+          "type": "STRING"
+        },
+        {
+          "name": "organization",
+          "type": "STRING"
+        },
+        {
+          "name": "country",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Community",
+      "file_path": "communities.csv",
+      "properties": [
+        {
+          "name": "id",
+          "type": "STRING"
+        },
+        {
+          "name": "acronym",
+          "type": "STRING"
+        },
+        {
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "name": "type",
+          "type": "STRING"
+        },
+        {
+          "name": "subjects",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Datasource",
+      "file_path": "datasources.csv",
+      "properties": [
+        {
+          "name": "id",
+          "type": "STRING"
+        },
+        {
+          "name": "type_value",
+          "type": "STRING"
+        },
+        {
+          "name": "officialName",
+          "type": "STRING"
+        },
+        {
+          "name": "subjects",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Funding",
+      "file_path": "fundings.csv",
+      "properties": [
+        {
+          "name": "id",
+          "type": "STRING"
+        },
+        {
+          "name": "shortName",
+          "type": "STRING"
+        },
+        {
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "name": "jurisdiction",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Organization",
+      "file_path": "organizations.csv",
+      "properties": [
+        {
+          "name": "id",
+          "type": "STRING"
+        },
+        {
+          "name": "legalShortName",
+          "type": "STRING"
+        },
+        {
+          "name": "legalName",
+          "type": "STRING"
+        },
+        {
+          "name": "country_code",
+          "type": "STRING"
+        },
+        {
+          "name": "country_label",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Project",
+      "file_path": "projects.csv",
+      "properties": [
+        {
+          "name": "id",
+          "type": "STRING"
+        },
+        {
+          "name": "acronym",
+          "type": "STRING"
+        },
+        {
+          "name": "title",
+          "type": "STRING"
+        },
+        {
+          "name": "startDate",
+          "type": "STRING"
+        },
+        {
+          "name": "endDate",
+          "type": "STRING"
+        },
+        {
+          "name": "callIdentifier",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Publication",
+      "file_path": "publications.csv",
+      "properties": [
+        {
+          "name": "id",
+          "type": "STRING"
+        },
+        {
+          "name": "type",
+          "type": "STRING"
+        },
+        {
+          "name": "originalIds",
+          "type": "STRING"
+        },
+        {
+          "name": "mainTitle",
+          "type": "STRING"
+        },
+        {
+          "name": "subTitle",
+          "type": "STRING"
+        },
+        {
+          "name": "publicationDate",
+          "type": "STRING"
+        },
+        {
+          "name": "year",
+          "type": "INT64"
+        },
+        {
+          "name": "publisher",
+          "type": "STRING"
+        },
+        {
+          "name": "FOS",
+          "type": "STRING"
+        },
+        {
+          "name": "container_name",
+          "type": "STRING"
+        },
+        {
+          "name": "countries",
+          "type": "STRING"
+        }
+      ]
+    }
+  ],
+  "edge_tables": [
+    {
+      "label": "community_IsRelatedTo_datasource",
+      "from_type": "Community",
+      "to_type": "Datasource",
+      "file_path": "community_IsRelatedTo_datasource.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "community_IsRelatedTo_organization",
+      "from_type": "Community",
+      "to_type": "Organization",
+      "file_path": "community_IsRelatedTo_organization.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "community_IsRelatedTo_publication",
+      "from_type": "Community",
+      "to_type": "Publication",
+      "file_path": "community_IsRelatedTo_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "community_IsRelatedTo_project",
+      "from_type": "Community",
+      "to_type": "Project",
+      "file_path": "community_IsRelatedTo_project.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "datasource_IsRelatedTo_community",
+      "from_type": "Datasource",
+      "to_type": "Community",
+      "file_path": "datasource_IsRelatedTo_community.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "datasource_hosts_publication",
+      "from_type": "Datasource",
+      "to_type": "Publication",
+      "file_path": "datasource_hosts_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "datasource_isProvidedBy_organization",
+      "from_type": "Datasource",
+      "to_type": "Organization",
+      "file_path": "datasource_isProvidedBy_organization.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "datasource_provides_publication",
+      "from_type": "Datasource",
+      "to_type": "Publication",
+      "file_path": "datasource_provides_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "funding_for_project_edges",
+      "from_type": "Funding",
+      "to_type": "Project",
+      "file_path": "funding_for_project_edges.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "reltype",
+          "type": "STRING"
+        },
+        {
+          "name": "relname",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "organization_IsChildOf_organization",
+      "from_type": "Organization",
+      "to_type": "Organization",
+      "file_path": "organization_IsChildOf_organization.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "organization_IsParentOf_organization",
+      "from_type": "Organization",
+      "to_type": "Organization",
+      "file_path": "organization_IsParentOf_organization.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "organization_IsRelatedTo_community",
+      "from_type": "Organization",
+      "to_type": "Community",
+      "file_path": "organization_IsRelatedTo_community.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "organization_isAuthorInstitutionOf_publication",
+      "from_type": "Organization",
+      "to_type": "Publication",
+      "file_path": "organization_isAuthorInstitutionOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "organization_isParticipant_project",
+      "from_type": "Organization",
+      "to_type": "Project",
+      "file_path": "organization_isParticipant_project.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "organization_provides_datasource",
+      "from_type": "Organization",
+      "to_type": "Datasource",
+      "file_path": "organization_provides_datasource.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_Cites_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_Cites_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_Compiles_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_Compiles_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_Continues_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_Continues_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_Describes_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_Describes_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_Documents_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_Documents_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_HasAmongTopNSimilarDocuments_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_HasAmongTopNSimilarDocuments_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_HasPart_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_HasPart_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_HasVersion_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_HasVersion_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsAmongTopNSimilarDocuments_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsAmongTopNSimilarDocuments_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsCitedBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsCitedBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsCompiledBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsCompiledBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsContinuedBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsContinuedBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsDerivedFrom_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsDerivedFrom_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsDescribedBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsDescribedBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsDocumentedBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsDocumentedBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsIdenticalTo_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsIdenticalTo_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsMetadataFor_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsMetadataFor_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsMetadataOf_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsMetadataOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsNewVersionOf_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsNewVersionOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsObsoletedBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsObsoletedBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsOriginalFormOf_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsOriginalFormOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsPartOf_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsPartOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsPreviousVersionOf_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsPreviousVersionOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsReferencedBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsReferencedBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsRelatedTo_community",
+      "from_type": "Publication",
+      "to_type": "Community",
+      "file_path": "product_IsRelatedTo_community.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsRelatedTo_datasource",
+      "from_type": "Publication",
+      "to_type": "Datasource",
+      "file_path": "product_IsRelatedTo_datasource.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsRelatedTo_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsRelatedTo_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsRequiredBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsRequiredBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsReviewedBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsReviewedBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsSourceOf_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsSourceOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsSupplementTo_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsSupplementTo_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsSupplementedBy_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsSupplementedBy_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsVariantFormOf_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsVariantFormOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_IsVersionOf_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_IsVersionOf_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_Obsoletes_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_Obsoletes_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_References_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_References_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_Requires_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_Requires_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_Reviews_publication",
+      "from_type": "Publication",
+      "to_type": "Publication",
+      "file_path": "product_Reviews_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_hasAuthorInstitution_organization",
+      "from_type": "Publication",
+      "to_type": "Organization",
+      "file_path": "product_hasAuthorInstitution_organization.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_isHostedBy_datasource",
+      "from_type": "Publication",
+      "to_type": "Datasource",
+      "file_path": "product_isHostedBy_datasource.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_isProducedBy_project",
+      "from_type": "Publication",
+      "to_type": "Project",
+      "file_path": "product_isProducedBy_project.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_isProvidedBy_datasource",
+      "from_type": "Publication",
+      "to_type": "Datasource",
+      "file_path": "product_isProvidedBy_datasource.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "project_IsRelatedTo_community",
+      "from_type": "Project",
+      "to_type": "Community",
+      "file_path": "project_IsRelatedTo_community.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "project_hasParticipant_organization",
+      "from_type": "Project",
+      "to_type": "Organization",
+      "file_path": "project_hasParticipant_organization.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "project_produces_publication",
+      "from_type": "Project",
+      "to_type": "Publication",
+      "file_path": "project_produces_product.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_name",
+          "type": "STRING"
+        },
+        {
+          "name": "relType_type",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "publication_author_edges",
+      "from_type": "Author",
+      "to_type": "Publication",
+      "file_path": "publication_author_edges.csv",
+      "properties": [
+        {
+          "name": "src",
+          "type": "STRING"
+        },
+        {
+          "name": "dst",
+          "type": "STRING"
+        },
+        {
+          "name": "sourceType",
+          "type": "STRING"
+        },
+        {
+          "name": "targetType",
+          "type": "STRING"
+        },
+        {
+          "name": "reltype",
+          "type": "STRING"
+        },
+        {
+          "name": "relname",
+          "type": "STRING"
+        }
+      ]
+    }
+  ],
+  "delimiter": ","
+}

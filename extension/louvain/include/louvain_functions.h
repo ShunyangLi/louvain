@@ -81,6 +81,32 @@ public:
           coauthor_mode_(true),
           coauthor_cfg_(cfg) {}
 
+    // Config for the infrastructure-projection mode (new case):
+    //   Datasource -[hosts]-> Publication -[hasAuthorInstitution]-> Organization
+    //   → build bipartite (Datasource, country_code) weighted by host count
+    //   → project to Country × Country:
+    //       w(c1, c2) = Σ_d min(w_{d,c1}, w_{d,c2})
+    //   → run Louvain on that country graph
+    // Tests: "is the open-science infrastructure footprint of countries as
+    // multipolar as their co-authorship footprint, or more centralized?"
+    struct InfraConfig {
+        int64_t year_min = 0;               // inclusive
+        int64_t year_max = 0;               // inclusive; year_max < year_min means no year filter
+        int min_hosts_per_datasource = 0;   // drop datasources hosting < this many
+                                            // (distinct, counted) pubs in the window; 0 = no filter
+        int max_author_orgs = 30;           // same mega-collab guard as coauthor mode;
+                                            // 0 = no filter
+    };
+    // Mode 3 (new): infra projection → country-level Louvain.
+    LouvainComputer(const StorageReadInterface& graph, InfraConfig cfg,
+                    int max_iterations, double resolution, int max_levels)
+        : graph_(graph),
+          max_iterations_(max_iterations),
+          resolution_(resolution),
+          max_levels_(max_levels),
+          infra_mode_(true),
+          infra_cfg_(cfg) {}
+
     struct Result {
         int num_vertices = 0;
         int num_communities = 0;
@@ -108,6 +134,8 @@ public:
 
         if (coauthor_mode_) {
             BuildCountryCoauthorProjection();
+        } else if (infra_mode_) {
+            BuildInfraCountryProjection();
         } else {
             BuildGraph();
         }
@@ -804,6 +832,298 @@ private:
                   << "ms";
     }
 
+    // Build the infrastructure-projection graph (new case):
+    //   vertices = distinct Organization.country_code values
+    //   edges    = for each datasource d, sum over country pairs (c1,c2) of
+    //              min(host_count(d,c1), host_count(d,c2))
+    //
+    // Rationale: two countries share "infrastructure weight" through a given
+    // datasource proportional to the smaller of their host-counts on it.
+    // min-coupling is the standard weighted projection that does not amplify
+    // asymmetric users of a platform (e.g. a country with 10 arXiv pubs and
+    // one with 10^6 arXiv pubs contribute min=10, not 10^6).
+    //
+    // Two-pass construction:
+    //   Pass 1: scan Publications. For each pub in [year_min, year_max] collect
+    //           the set of country indices reached via its author institutions
+    //           (with the same mega-collaboration guard as coauthor mode), and
+    //           store it keyed by pub vid.
+    //   Pass 2: scan Datasource→Publication edges. For each (d, p) lookup the
+    //           country set collected in pass 1 and increment host_count[d][c]
+    //           by 1 for every c in the set (so a single pub with authors from
+    //           US and DE contributes +1 to (d,US) and +1 to (d,DE)).
+    //   Pass 3: project to Country×Country via min-coupling per datasource.
+    void BuildInfraCountryProjection() {
+        auto tstart = std::chrono::steady_clock::now();
+        const auto& schema = graph_.schema();
+
+        // --- Resolve labels ---
+        label_t pub_label, org_label, ds_label;
+        try {
+            pub_label = schema.get_vertex_label_id("Publication");
+            org_label = schema.get_vertex_label_id("Organization");
+            ds_label  = schema.get_vertex_label_id("Datasource");
+        } catch (...) {
+            LOG(ERROR) << "[Louvain-infra] Publication/Organization/Datasource vertex label missing";
+            return;
+        }
+        // Publication → Organization edge label
+        label_t pub_org_edge_label = static_cast<label_t>(-1);
+        // Datasource → Publication edge label
+        label_t ds_pub_edge_label = static_cast<label_t>(-1);
+        for (const auto& [key, _] : schema.get_all_edge_schemas()) {
+            auto [src, dst, e] = schema.parse_edge_label(key);
+            if (src == pub_label && dst == org_label && pub_org_edge_label == static_cast<label_t>(-1)) {
+                pub_org_edge_label = e;
+            }
+            if (src == ds_label && dst == pub_label && ds_pub_edge_label == static_cast<label_t>(-1)) {
+                ds_pub_edge_label = e;
+            }
+        }
+        if (pub_org_edge_label == static_cast<label_t>(-1)) {
+            LOG(ERROR) << "[Louvain-infra] No edge Publication→Organization found";
+            return;
+        }
+        if (ds_pub_edge_label == static_cast<label_t>(-1)) {
+            LOG(ERROR) << "[Louvain-infra] No edge Datasource→Publication found";
+            return;
+        }
+        LOG(INFO) << "[Louvain-infra] pub_label=" << (int)pub_label
+                  << " org_label=" << (int)org_label
+                  << " ds_label=" << (int)ds_label
+                  << " pub_org_edge_label=" << (int)pub_org_edge_label
+                  << " ds_pub_edge_label=" << (int)ds_pub_edge_label;
+
+        // --- Typed column accessors ---
+        auto year_col_base = graph_.GetVertexPropColumn(pub_label, "year");
+        auto year_col = std::dynamic_pointer_cast<TypedRefColumn<int64_t>>(year_col_base);
+        if (!year_col) {
+            LOG(ERROR) << "[Louvain-infra] Publication.year is not INT64";
+            return;
+        }
+        auto cc_col_base = graph_.GetVertexPropColumn(org_label, "country_code");
+        auto cc_col = std::dynamic_pointer_cast<TypedRefColumn<std::string_view>>(cc_col_base);
+        if (!cc_col) {
+            LOG(ERROR) << "[Louvain-infra] Organization.country_code is not STRING";
+            return;
+        }
+
+        VertexSet pub_set = graph_.GetVertexSet(pub_label);
+        VertexSet org_set = graph_.GetVertexSet(org_label);
+        VertexSet ds_set  = graph_.GetVertexSet(ds_label);
+        const size_t num_pubs = pub_set.size();
+        const size_t num_orgs = org_set.size();
+        const size_t num_datasources = ds_set.size();
+
+        // --- Build org → country_idx mapping ---
+        std::unordered_map<std::string, int> cc_to_idx;
+        cc_to_idx.reserve(512);
+        std::vector<int> org_to_cidx(num_orgs, -1);
+        std::vector<std::string> cc_list;
+        for (size_t i = 0; i < num_orgs; ++i) {
+            vid_t org_vid = static_cast<vid_t>(i);
+            if (!graph_.IsValidVertex(org_label, org_vid)) continue;
+            std::string_view cc = cc_col->get_view(i);
+            if (cc.empty()) continue;
+            std::string cc_str(cc);
+            auto [it, inserted] = cc_to_idx.emplace(cc_str, static_cast<int>(cc_to_idx.size()));
+            if (inserted) cc_list.push_back(cc_str);
+            org_to_cidx[i] = it->second;
+        }
+        const int num_countries = static_cast<int>(cc_to_idx.size());
+        LOG(INFO) << "[Louvain-infra] Mapped " << num_orgs << " orgs → "
+                  << num_countries << " distinct country codes";
+
+        if (num_countries == 0) {
+            num_vertex_ = 0;
+            return;
+        }
+
+        const bool year_filter_active =
+            infra_cfg_.year_max >= infra_cfg_.year_min;
+        const int max_author_orgs = infra_cfg_.max_author_orgs;
+
+        // --- Pass 1: pub → sorted distinct country indices (within window) ---
+        // pub_countries[pub_vid] may be empty if the pub is filtered out.
+        GenericView pub_org_view = graph_.GetGenericOutgoingGraphView(
+            pub_label, org_label, pub_org_edge_label);
+
+        std::vector<std::vector<int>> pub_countries(num_pubs);
+        int64_t pubs_scanned = 0;
+        int64_t pubs_accepted = 0;
+        int64_t pubs_dropped_year = 0;
+        int64_t pubs_dropped_size = 0;
+        int64_t pubs_dropped_empty = 0;
+
+        for (size_t i = 0; i < num_pubs; ++i) {
+            vid_t pub_vid = static_cast<vid_t>(i);
+            if (!graph_.IsValidVertex(pub_label, pub_vid)) continue;
+            ++pubs_scanned;
+
+            if (year_filter_active) {
+                int64_t y = year_col->get_view(i);
+                if (y < infra_cfg_.year_min || y > infra_cfg_.year_max) {
+                    ++pubs_dropped_year;
+                    continue;
+                }
+            }
+
+            NbrList edges = pub_org_view.get_edges(pub_vid);
+            std::unordered_set<int> distinct_orgs;
+            distinct_orgs.reserve(8);
+            std::vector<int> cvec;
+            cvec.reserve(8);
+            for (auto it = edges.begin(); it != edges.end(); ++it) {
+                vid_t org_vid = *it;
+                if (static_cast<size_t>(org_vid) >= num_orgs) continue;
+                if (!distinct_orgs.insert(static_cast<int>(org_vid)).second) continue;
+                int cidx = org_to_cidx[org_vid];
+                if (cidx < 0) continue;
+                cvec.push_back(cidx);
+            }
+
+            if (max_author_orgs > 0 &&
+                static_cast<int>(distinct_orgs.size()) > max_author_orgs) {
+                ++pubs_dropped_size;
+                continue;
+            }
+            if (cvec.empty()) {
+                ++pubs_dropped_empty;
+                continue;
+            }
+            std::sort(cvec.begin(), cvec.end());
+            cvec.erase(std::unique(cvec.begin(), cvec.end()), cvec.end());
+            pub_countries[i] = std::move(cvec);
+            ++pubs_accepted;
+        }
+
+        auto tpass1 = std::chrono::steady_clock::now();
+        LOG(INFO) << "[Louvain-infra] Pass 1 done: scanned=" << pubs_scanned
+                  << " accepted=" << pubs_accepted
+                  << " dropped_year=" << pubs_dropped_year
+                  << " dropped_size=" << pubs_dropped_size
+                  << " dropped_empty=" << pubs_dropped_empty
+                  << " in "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(tpass1 - tstart).count()
+                  << "ms";
+
+        // --- Pass 2: datasource → country host_count via shared pubs ---
+        // ds_country_host[d] : country_idx -> host_count
+        GenericView ds_pub_view = graph_.GetGenericOutgoingGraphView(
+            ds_label, pub_label, ds_pub_edge_label);
+
+        std::vector<std::unordered_map<int, int64_t>> ds_country_host(num_datasources);
+        std::vector<int64_t> ds_total_host(num_datasources, 0);
+        int64_t ds_edges_seen = 0;
+        for (size_t i = 0; i < num_datasources; ++i) {
+            vid_t ds_vid = static_cast<vid_t>(i);
+            if (!graph_.IsValidVertex(ds_label, ds_vid)) continue;
+            NbrList edges = ds_pub_view.get_edges(ds_vid);
+            // Dedup target pubs in case an edge appears multiply.
+            std::unordered_set<int> seen_pubs;
+            seen_pubs.reserve(16);
+            auto& bucket = ds_country_host[i];
+            for (auto it = edges.begin(); it != edges.end(); ++it) {
+                vid_t pub_vid = *it;
+                if (static_cast<size_t>(pub_vid) >= num_pubs) continue;
+                if (!seen_pubs.insert(static_cast<int>(pub_vid)).second) continue;
+                const auto& cvec = pub_countries[pub_vid];
+                if (cvec.empty()) continue;
+                ++ds_edges_seen;
+                ++ds_total_host[i];
+                for (int c : cvec) bucket[c]++;
+            }
+        }
+
+        // Optionally drop long-tail datasources before projecting.
+        const int min_hosts = infra_cfg_.min_hosts_per_datasource;
+        int64_t ds_kept = 0, ds_dropped_small = 0, ds_dropped_empty = 0;
+        for (size_t i = 0; i < num_datasources; ++i) {
+            if (ds_country_host[i].empty()) {
+                ++ds_dropped_empty;
+                continue;
+            }
+            if (min_hosts > 0 && ds_total_host[i] < min_hosts) {
+                ds_country_host[i].clear();
+                ++ds_dropped_small;
+                continue;
+            }
+            ++ds_kept;
+        }
+
+        auto tpass2 = std::chrono::steady_clock::now();
+        LOG(INFO) << "[Louvain-infra] Pass 2 done: datasources_kept=" << ds_kept
+                  << " dropped_empty=" << ds_dropped_empty
+                  << " dropped_small=" << ds_dropped_small
+                  << " (min_hosts=" << min_hosts << ")"
+                  << " in "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(tpass2 - tpass1).count()
+                  << "ms";
+
+        // --- Pass 3: project to Country × Country via min-coupling ---
+        // agg[a] : b -> w, a < b. Self-pairs (a == b) dropped: like in coauthor
+        // mode, Louvain on intra-country weight collapses to trivial partition.
+        std::vector<std::unordered_map<int, double>> agg(num_countries);
+        for (size_t i = 0; i < num_datasources; ++i) {
+            const auto& bucket = ds_country_host[i];
+            if (bucket.size() < 2) continue;
+            // Copy to vector so we can enumerate pairs in sorted order.
+            std::vector<std::pair<int, int64_t>> items(bucket.begin(), bucket.end());
+            std::sort(items.begin(), items.end(),
+                [](const auto& x, const auto& y){ return x.first < y.first; });
+            for (size_t x = 0; x < items.size(); ++x) {
+                int a = items[x].first;
+                int64_t wa = items[x].second;
+                for (size_t y = x + 1; y < items.size(); ++y) {
+                    int b = items[y].first;
+                    int64_t wb = items[y].second;
+                    double coupling = static_cast<double>(std::min(wa, wb));
+                    if (coupling <= 0.0) continue;
+                    agg[a][b] += coupling;
+                }
+            }
+        }
+
+        // --- Materialize undirected adjacency (same convention as coauthor) ---
+        num_vertex_ = num_countries;
+        adj_.assign(num_vertex_, {});
+        std::vector<size_t> counts(num_vertex_, 0);
+        for (int a = 0; a < num_countries; ++a) {
+            for (auto& [b, w] : agg[a]) {
+                (void)w;
+                counts[a]++;
+                counts[b]++;
+            }
+        }
+        for (int i = 0; i < num_vertex_; ++i) adj_[i].reserve(counts[i]);
+        int64_t total_entries = 0;
+        for (int a = 0; a < num_countries; ++a) {
+            for (auto& [b, w] : agg[a]) {
+                adj_[a].push_back({b, w});
+                adj_[b].push_back({a, w});
+                total_entries += 2;
+            }
+        }
+        num_edge_ = static_cast<int>(total_entries);
+
+        // --- Mapping for output CSV (reuse country_code schema) ---
+        global_to_local_.assign(num_vertex_, {});
+        aggregate_keys_.resize(num_vertex_);
+        for (int i = 0; i < num_vertex_; ++i) {
+            global_to_local_[i] = {static_cast<label_t>(-1),
+                                   static_cast<vid_t>(i)};
+            aggregate_keys_[i] = cc_list[i];
+        }
+
+        auto tend = std::chrono::steady_clock::now();
+        LOG(INFO) << "[Louvain-infra] Built country graph: "
+                  << num_vertex_ << " vertices, " << total_entries
+                  << " directed adjacency entries, ds_edges_seen="
+                  << ds_edges_seen << ", total="
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(tend - tstart).count()
+                  << "ms";
+    }
+
     const StorageReadInterface& graph_;
     int max_iterations_;
     double resolution_;
@@ -812,6 +1132,10 @@ private:
     // Coauthor-projection mode (Case A): off by default; set by the alternate ctor.
     bool coauthor_mode_ = false;
     CoauthorConfig coauthor_cfg_;
+
+    // Infra-projection mode (infrastructure case): off by default; set by alternate ctor.
+    bool infra_mode_ = false;
+    InfraConfig infra_cfg_;
 
     int num_vertex_ = 0;
     int num_edge_ = 0;
@@ -1277,6 +1601,239 @@ private:
         LOG(INFO) << "[LOUVAIN_COAUTHOR] Results written to: " << outputFile;
 
         // Build output context (single row, 6 columns).
+        execution::Context ctx;
+
+        execution::ValueColumnBuilder<std::string> statusBuilder;
+        statusBuilder.push_back_opt(std::string("success"));
+        ctx.set(0, statusBuilder.finish());
+
+        execution::ValueColumnBuilder<int64_t> verticesBuilder;
+        verticesBuilder.push_back_opt(static_cast<int64_t>(result.num_vertices));
+        ctx.set(1, verticesBuilder.finish());
+
+        execution::ValueColumnBuilder<int64_t> commBuilder;
+        commBuilder.push_back_opt(static_cast<int64_t>(result.num_communities));
+        ctx.set(2, commBuilder.finish());
+
+        execution::ValueColumnBuilder<double> modBuilder;
+        modBuilder.push_back_opt(result.modularity);
+        ctx.set(3, modBuilder.finish());
+
+        execution::ValueColumnBuilder<int64_t> levelBuilder;
+        levelBuilder.push_back_opt(static_cast<int64_t>(result.levels_completed));
+        ctx.set(4, levelBuilder.finish());
+
+        execution::ValueColumnBuilder<std::string> fileBuilder;
+        fileBuilder.push_back_opt(outputFile);
+        ctx.set(5, fileBuilder.finish());
+
+        ctx.tag_ids = {0, 1, 2, 3, 4, 5};
+        return ctx;
+    }
+};
+
+// ============================================================================
+// LOUVAIN_INFRA_COUNTRY — Open-science infrastructure case
+// ============================================================================
+//
+// Builds the country-level infrastructure graph from
+//   Datasource —[hosts]→ Publication —[hasAuthorInstitution]→ Organization
+// by (1) tagging each Publication within [year_min, year_max] with the set
+// of its distinct author-institution country codes, (2) for each Datasource d
+// aggregating host_count[d][c] = # pubs hosted by d that have an author from
+// country c, and (3) projecting to Country×Country via min-coupling:
+//   w(c1, c2) = Σ_d min(host_count[d][c1], host_count[d][c2])
+//
+// Story: if open-science infrastructure (arXiv, Zenodo, HAL, CNKI, elibrary.ru,
+// etc.) is multipolar the Louvain partition should mirror LOUVAIN_COAUTHOR;
+// if infrastructure is single-pole / Western-centric the partition should
+// collapse most countries into one mega-community.
+//
+// Grammar:
+//   CALL LOUVAIN_INFRA_COUNTRY(year_min, year_max)
+//   CALL LOUVAIN_INFRA_COUNTRY(year_min, year_max,
+//                              min_hosts_per_datasource, max_author_orgs,
+//                              max_iter, resolution, max_levels)
+//
+// Output columns match LOUVAIN_COAUTHOR; result CSV schema is identical:
+//   global_id, country_code, community_id
+// ============================================================================
+
+struct LouvainInfraCountryInput : public CallFuncInputBase {
+    int64_t year_min;
+    int64_t year_max;
+    int64_t min_hosts_per_datasource;
+    int64_t max_author_orgs;
+    int64_t max_iter;
+    double  resolution;
+    int64_t max_levels;
+
+    LouvainInfraCountryInput(int64_t ymin, int64_t ymax,
+                             int64_t mh = 0, int64_t mo = 30,
+                             int64_t mi = 20, double r = 1.0,
+                             int64_t ml = 10)
+        : year_min(ymin), year_max(ymax),
+          min_hosts_per_datasource(mh), max_author_orgs(mo),
+          max_iter(mi), resolution(r), max_levels(ml) {}
+    ~LouvainInfraCountryInput() override = default;
+};
+
+struct LouvainInfraCountryFunction {
+    static constexpr const char* name = "LOUVAIN_INFRA_COUNTRY";
+
+    static function_set getFunctionSet() {
+        function_set functionSet;
+
+        call_output_columns outputCols{
+            {"status", common::LogicalTypeID::STRING},
+            {"num_vertices", common::LogicalTypeID::INT64},
+            {"num_communities", common::LogicalTypeID::INT64},
+            {"modularity", common::LogicalTypeID::DOUBLE},
+            {"levels", common::LogicalTypeID::INT64},
+            {"result_file", common::LogicalTypeID::STRING}
+        };
+
+        // ---- Overload A: (year_min, year_max) ----
+        {
+            auto func = std::make_unique<NeugCallFunction>(
+                name,
+                std::vector<common::LogicalTypeID>{
+                    common::LogicalTypeID::INT64,
+                    common::LogicalTypeID::INT64},
+                call_output_columns(outputCols));
+
+            func->bindFunc = [](const Schema&, const execution::ContextMeta&,
+                                const ::physical::PhysicalPlan& plan, int op_idx)
+                -> std::unique_ptr<CallFuncInputBase> {
+                auto& proc = plan.plan(op_idx).opr().procedure_call();
+                int64_t ymin = 0, ymax = 0;
+                if (proc.query().arguments_size() >= 1 &&
+                    proc.query().arguments(0).has_const_())
+                    ymin = proc.query().arguments(0).const_().i64();
+                if (proc.query().arguments_size() >= 2 &&
+                    proc.query().arguments(1).has_const_())
+                    ymax = proc.query().arguments(1).const_().i64();
+                LOG(INFO) << "[LOUVAIN_INFRA_COUNTRY] Bind (short): year_min="
+                          << ymin << " year_max=" << ymax;
+                return std::make_unique<LouvainInfraCountryInput>(ymin, ymax);
+            };
+
+            func->execFunc = [](const CallFuncInputBase& input,
+                                IStorageInterface& graph)
+                -> execution::Context {
+                return ExecuteLouvainInfraCountry(input, graph);
+            };
+
+            functionSet.push_back(std::move(func));
+        }
+
+        // ---- Overload B: full params ----
+        {
+            auto func = std::make_unique<NeugCallFunction>(
+                name,
+                std::vector<common::LogicalTypeID>{
+                    common::LogicalTypeID::INT64,  // year_min
+                    common::LogicalTypeID::INT64,  // year_max
+                    common::LogicalTypeID::INT64,  // min_hosts_per_datasource
+                    common::LogicalTypeID::INT64,  // max_author_orgs
+                    common::LogicalTypeID::INT64,  // max_iter
+                    common::LogicalTypeID::DOUBLE, // resolution
+                    common::LogicalTypeID::INT64}, // max_levels
+                call_output_columns(outputCols));
+
+            func->bindFunc = [](const Schema&, const execution::ContextMeta&,
+                                const ::physical::PhysicalPlan& plan, int op_idx)
+                -> std::unique_ptr<CallFuncInputBase> {
+                auto& proc = plan.plan(op_idx).opr().procedure_call();
+                int64_t ymin = 0, ymax = 0, mh = 0, mo = 30, mi = 20, ml = 10;
+                double  r = 1.0;
+                auto& args = proc.query();
+                if (args.arguments_size() >= 1 && args.arguments(0).has_const_())
+                    ymin = args.arguments(0).const_().i64();
+                if (args.arguments_size() >= 2 && args.arguments(1).has_const_())
+                    ymax = args.arguments(1).const_().i64();
+                if (args.arguments_size() >= 3 && args.arguments(2).has_const_())
+                    mh = args.arguments(2).const_().i64();
+                if (args.arguments_size() >= 4 && args.arguments(3).has_const_())
+                    mo = args.arguments(3).const_().i64();
+                if (args.arguments_size() >= 5 && args.arguments(4).has_const_())
+                    mi = args.arguments(4).const_().i64();
+                if (args.arguments_size() >= 6 && args.arguments(5).has_const_())
+                    r  = args.arguments(5).const_().f64();
+                if (args.arguments_size() >= 7 && args.arguments(6).has_const_())
+                    ml = args.arguments(6).const_().i64();
+                LOG(INFO) << "[LOUVAIN_INFRA_COUNTRY] Bind (full): year=[" << ymin
+                          << "," << ymax << "] min_hosts=" << mh
+                          << " max_author_orgs=" << mo
+                          << " max_iter=" << mi << " resolution=" << r
+                          << " max_levels=" << ml;
+                return std::make_unique<LouvainInfraCountryInput>(
+                    ymin, ymax, mh, mo, mi, r, ml);
+            };
+
+            func->execFunc = [](const CallFuncInputBase& input,
+                                IStorageInterface& graph)
+                -> execution::Context {
+                return ExecuteLouvainInfraCountry(input, graph);
+            };
+
+            functionSet.push_back(std::move(func));
+        }
+
+        return functionSet;
+    }
+
+private:
+    static execution::Context ExecuteLouvainInfraCountry(
+            const CallFuncInputBase& input, IStorageInterface& graph) {
+        auto& cInput = static_cast<const LouvainInfraCountryInput&>(input);
+
+        auto* readInterface = dynamic_cast<StorageReadInterface*>(&graph);
+        if (!readInterface) {
+            LOG(ERROR) << "[LOUVAIN_INFRA_COUNTRY] graph is not a StorageReadInterface!";
+            return execution::Context();
+        }
+
+        LOG(INFO) << "[LOUVAIN_INFRA_COUNTRY] Running with year=["
+                  << cInput.year_min << "," << cInput.year_max
+                  << "] min_hosts=" << cInput.min_hosts_per_datasource
+                  << " max_author_orgs=" << cInput.max_author_orgs;
+
+        LouvainComputer::InfraConfig cfg;
+        cfg.year_min = cInput.year_min;
+        cfg.year_max = cInput.year_max;
+        cfg.min_hosts_per_datasource =
+            static_cast<int>(cInput.min_hosts_per_datasource);
+        cfg.max_author_orgs = static_cast<int>(cInput.max_author_orgs);
+
+        LouvainComputer computer(
+            *readInterface, cfg,
+            static_cast<int>(cInput.max_iter),
+            cInput.resolution,
+            static_cast<int>(cInput.max_levels));
+        auto result = computer.Compute();
+
+        std::string outputFile =
+            GenerateLouvainOutputPath("louvain_infra_country");
+        {
+            std::ofstream ofs(outputFile);
+            if (!ofs.is_open()) {
+                LOG(ERROR) << "[LOUVAIN_INFRA_COUNTRY] Failed to open: "
+                           << outputFile;
+                return execution::Context();
+            }
+            ofs << "global_id,country_code,community_id\n";
+            for (int i = 0; i < result.num_vertices; ++i) {
+                const std::string& cc =
+                    (i < (int)result.aggregate_keys.size())
+                        ? result.aggregate_keys[i]
+                        : std::string{};
+                ofs << i << "," << cc << "," << result.community[i] << "\n";
+            }
+            ofs.close();
+        }
+        LOG(INFO) << "[LOUVAIN_INFRA_COUNTRY] Results written to: " << outputFile;
+
         execution::Context ctx;
 
         execution::ValueColumnBuilder<std::string> statusBuilder;

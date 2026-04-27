@@ -33,6 +33,10 @@ void Init() {
             neug::function::LouvainCoauthorFunction>(
             neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
 
+        neug::extension::ExtensionAPI::registerFunction<
+            neug::function::LouvainInfraCountryFunction>(
+            neug::catalog::CatalogEntryType::TABLE_FUNCTION_ENTRY);
+
         neug::extension::ExtensionAPI::registerExtension(
             neug::extension::ExtensionInfo{
                 "louvain",
@@ -44,6 +48,11 @@ void Init() {
                 "Publication→Organization co-author projection within a year range. "
                 "CALL LOUVAIN_COAUTHOR(year_min, year_max, max_coauthors, max_iter, "
                 "resolution, max_levels) - full control. "
+                "CALL LOUVAIN_INFRA_COUNTRY(year_min, year_max) - country-level Louvain on "
+                "Datasource→Publication→Organization infrastructure projection "
+                "(min-coupling over shared datasources) within a year range. "
+                "CALL LOUVAIN_INFRA_COUNTRY(year_min, year_max, min_hosts_per_datasource, "
+                "max_author_orgs, max_iter, resolution, max_levels) - full control. "
                 "Returns status, num_vertices, num_communities, modularity, levels, "
                 "and result_file."
             });
