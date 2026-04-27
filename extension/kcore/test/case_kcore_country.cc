@@ -1,4 +1,4 @@
-/**
+extension/kcore/test/case_kcore_country.cc/**
  * Copyright 2020 Alibaba Group Holding Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -346,9 +346,11 @@ static void writeBrexitDiff(const ProjectWindow& a, const ProjectWindow& b,
         if (auto it = mb.find(oid); it != mb.end()) { cb = it->second.coreness; if (cc.empty()) cc = it->second.country_code; }
         int delta = (ca >= 0 && cb >= 0) ? (cb - ca) : 0;
         ofs << "\"" << oid << "\"," << cc << ",";
-        if (ca >= 0) ofs << ca; ofs << ",";
-        if (cb >= 0) ofs << cb; ofs << ",";
-        if (ca >= 0 && cb >= 0) ofs << delta;
+        if (ca >= 0) { ofs << ca; }
+        ofs << ",";
+        if (cb >= 0) { ofs << cb; }
+        ofs << ",";
+        if (ca >= 0 && cb >= 0) { ofs << delta; }
         ofs << "\n";
     }
     std::cout << "  wrote " << path << " (" << all_org.size() << " orgs total)" << std::endl;
@@ -413,12 +415,17 @@ static void writeCrossSubstrate(
         if (auto it = h2020_country.find(cc); it != h2020_country.end()) c = it->second;
         if (auto it = he_country.find(cc);    it != he_country.end())    d = it->second;
         ofs << cc << ",";
-        if (a >= 0) ofs << a; ofs << ",";
-        if (b >= 0) ofs << b; ofs << ",";
-        if (c >= 0) ofs << c; ofs << ",";
-        if (d >= 0) ofs << d; ofs << ",";
-        if (a >= 0 && b >= 0) ofs << (b - a); ofs << ",";
-        if (c >= 0 && d >= 0) ofs << (d - c);
+        if (a >= 0) { ofs << a; }
+        ofs << ",";
+        if (b >= 0) { ofs << b; }
+        ofs << ",";
+        if (c >= 0) { ofs << c; }
+        ofs << ",";
+        if (d >= 0) { ofs << d; }
+        ofs << ",";
+        if (a >= 0 && b >= 0) { ofs << (b - a); }
+        ofs << ",";
+        if (c >= 0 && d >= 0) { ofs << (d - c); }
         ofs << "\n";
     }
     std::cout << "  wrote " << path << " (" << all_cc.size() << " countries)" << std::endl;
