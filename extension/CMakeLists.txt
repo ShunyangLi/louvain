@@ -130,5 +130,7 @@ add_extension_if_enabled("parquet")
 add_extension_if_enabled("sampled_match")
 # Add louvain extension
 add_extension_if_enabled("louvain")
+# Add kcore extension
+add_extension_if_enabled("kcore")
 
 message(STATUS "=== Extension configuration complete ===")
