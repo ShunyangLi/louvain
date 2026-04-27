@@ -1,4 +1,4 @@
-extension/kcore/test/case_kcore_country.cc/**
+/**
  * Copyright 2020 Alibaba Group Holding Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
